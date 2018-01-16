@@ -99,3 +99,10 @@ ENV/
 
 # mypy
 .mypy_cache/
+examples.py
+examples2.py
+test.*
+
+logs/
+data/glove.840B.300d.zip
+squad.h5
