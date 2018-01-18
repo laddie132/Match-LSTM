@@ -106,3 +106,4 @@ test.*
 logs/
 data/glove.840B.300d.zip
 squad.h5
+glove.840B.300d.h5
