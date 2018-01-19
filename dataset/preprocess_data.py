@@ -12,18 +12,18 @@ import logging
 import numpy as np
 from functools import reduce
 
-
 logger = logging.getLogger(__name__)
+
 
 class PreprocessData:
     """
     preprocess dataset and glove embedding to hdf5 files
     """
 
-    padding = '__padding__'     # id = 0
-    oov = '__oov__'             # id = 1
+    padding = '__padding__'  # id = 0
+    oov = '__oov__'  # id = 1
 
-    compress_option = dict(compression="gzip", compression_opts=9, shuffle=False)
+    __compress_option = dict(compression="gzip", compression_opts=9, shuffle=False)
 
     def __init__(self, global_config):
         # data config
@@ -36,18 +36,18 @@ class PreprocessData:
         self.__load_config(global_config)
 
         # preprocess config
-        self.word2id = {}
-        self.max_context_token_len = 0
-        self.max_question_token_len = 0
-        self.max_answer_len = 0
+        self.__word2id = {}
+        self.__max_context_token_len = 0
+        self.__max_question_token_len = 0
+        self.__max_answer_len = 0
 
-        self.is_exist_glove_hdf5 = os.path.exists(self.__export_glove_path)
+        self.__is_exist_glove_hdf5 = os.path.exists(self.__export_glove_path)
 
         # data need to store in hdf5 file
-        self.glove_data = {}
-        self.squad_data = {}
-        self.glove_attr = {}
-        self.squad_attr = {}
+        self.__glove_data = {}
+        self.__squad_data = {}
+        self.__glove_attr = {}
+        self.__squad_attr = {}
 
     def __load_config(self, global_config):
         """
@@ -76,7 +76,7 @@ class PreprocessData:
         data_list_tmp = [ele['paragraphs'] for ele in data['data']]
         contexts_qas = reduce(lambda a, b: a + b, data_list_tmp)
 
-        self.squad_attr['name'] = 'squad-' + version
+        self.__squad_attr['name'] = 'squad-' + version
         return contexts_qas
 
     def __build_data(self, contexts_qas):
@@ -87,7 +87,7 @@ class PreprocessData:
         """
         contexts_wid = []
         questions_wid = []
-        answers_range_wid = []      # each answer use the [start,end) representation, all the answer horizontal concat
+        answers_range_wid = []  # each answer use the [start,end) representation, all the answer horizontal concat
 
         for question_grp in contexts_qas:
             cur_context = question_grp['context']
@@ -95,28 +95,29 @@ class PreprocessData:
 
             cur_context_toke = nltk.word_tokenize(cur_context)
             cur_context_ids = self.__sentence_to_id(cur_context_toke)
-            self.max_context_token_len = max(self.max_context_token_len, len(cur_context_ids))
+            self.__max_context_token_len = max(self.__max_context_token_len, len(cur_context_ids))
 
             for qa in cur_qas:
                 cur_question = qa['question']
                 cur_question_toke = nltk.word_tokenize(cur_question)
                 cur_question_ids = self.__sentence_to_id(cur_question_toke)
-                self.max_question_token_len = max(self.max_question_token_len, len(cur_question_ids))
+                self.__max_question_token_len = max(self.__max_question_token_len, len(cur_question_ids))
 
                 contexts_wid.append(cur_context_ids)
                 questions_wid.append(cur_question_ids)
 
                 # find all the answer positions
                 cur_answers = qa['answers']
-                self.max_answer_len = max(self.max_answer_len, len(cur_answers)*2)
+                self.__max_answer_len = max(self.__max_answer_len, len(cur_answers) * 2)
 
                 cur_ans_range_ids = [0 for i in range(len(cur_answers) * 2)]
                 for idx, cur_ans in enumerate(cur_answers):
                     cur_ans_text = nltk.word_tokenize(cur_ans['text'])
-                    pos_s = self.__find_sublist(cur_ans_text, cur_context_toke)   # not consider find multi position in context
+                    pos_s = self.__find_sublist(cur_ans_text,
+                                                cur_context_toke)  # not consider find multi position in context
                     pos_e = pos_s + len(cur_ans_text)
 
-                    cur_ans_range_ids[(idx*2):(idx*2+2)] = [pos_s, pos_e]
+                    cur_ans_range_ids[(idx * 2):(idx * 2 + 2)] = [pos_s, pos_e]
 
                 answers_range_wid.append(cur_ans_range_ids)
 
@@ -132,7 +133,7 @@ class PreprocessData:
         :return:
         """
         for i in range(len(base)):
-            if base[i:(i+len(query))] == query:
+            if base[i:(i + len(query))] == query:
                 return i
 
         return -1
@@ -146,10 +147,10 @@ class PreprocessData:
 
         ids = []
         for word in sentence:
-            if word in self.word2id:
-                ids.append(self.word2id[word])
+            if word in self.__word2id:
+                ids.append(self.__word2id[word])
             else:
-                ids.append(self.word2id[self.oov])
+                ids.append(self.__word2id[self.oov])
 
         return ids
 
@@ -158,7 +159,7 @@ class PreprocessData:
         handle glove embeddings, transform text to hdf5 data or just read hdf5 file with word2id
         :return:
         """
-        if not self.is_exist_glove_hdf5:
+        if not self.__is_exist_glove_hdf5:
             logger.debug("read glove from text file %s" % self.__glove_path)
             with zipfile.ZipFile(self.__glove_path, 'r') as zf:
                 if len(zf.namelist()) != 1:
@@ -180,16 +181,16 @@ class PreprocessData:
                         if word_num % 10000 == 0:
                             logger.debug('handle word No.%d' % word_num)
 
-                self.glove_attr['word_dict_size'] = len(words)
-                self.glove_attr['embedding_size'] = self.__embedding_size
-                self.glove_data['id2word'] = np.array(words, dtype=np.str)
-                self.glove_data['id2vec'] = np.array(embeddings, dtype=np.float32)
-                self.word2id = dict(zip(words, range(len(words))))
+                self.__glove_attr['word_dict_size'] = len(words)
+                self.__glove_attr['embedding_size'] = self.__embedding_size
+                self.__glove_data['id2word'] = np.array(words, dtype=np.str)
+                self.__glove_data['id2vec'] = np.array(embeddings, dtype=np.float32)
+                self.__word2id = dict(zip(words, range(len(words))))
         else:
             logger.debug("read glove from hdf5 file %s" % self.__export_glove_path)
             with h5py.File(self.__export_glove_path, 'r') as f:
                 words = f['id2word']
-            self.word2id = dict(zip(words, range(len(words))))
+            self.__word2id = dict(zip(words, range(len(words))))
 
     def __export_glove_hdf5(self):
         """
@@ -200,15 +201,15 @@ class PreprocessData:
         str_dt = h5py.special_dtype(vlen=str)
 
         # attributes
-        for attr_name in self.glove_attr:
-            f.attrs[attr_name] = self.glove_attr[attr_name]
+        for attr_name in self.__glove_attr:
+            f.attrs[attr_name] = self.__glove_attr[attr_name]
 
         # data
-        for key, value in self.glove_data.items():
+        for key, value in self.__glove_data.items():
             dt = value.dtype
             if type(value[0]) == np.str_:
                 dt = str_dt
-            data = f.create_dataset(key, value.shape, dtype=dt, **self.compress_option)
+            data = f.create_dataset(key, value.shape, dtype=dt, **self.__compress_option)
             data[...] = value
 
         f.flush()
@@ -222,15 +223,15 @@ class PreprocessData:
         f = h5py.File(self.__export_squad_path, 'w')
 
         # attributes
-        for attr_name in self.squad_attr:
-            f.attrs[attr_name] = self.squad_attr[attr_name]
+        for attr_name in self.__squad_attr:
+            f.attrs[attr_name] = self.__squad_attr[attr_name]
 
         # data
-        for key, value in self.squad_data.items():
+        for key, value in self.__squad_data.items():
             data_grp = f.create_group(key)
 
             for sub_key, sub_value in value.items():
-                data = data_grp.create_dataset(sub_key, sub_value.shape, dtype=sub_value.dtype, **self.compress_option)
+                data = data_grp.create_dataset(sub_key, sub_value.shape, dtype=sub_value.dtype, **self.__compress_option)
                 data[...] = sub_value
 
         f.flush()
@@ -252,22 +253,27 @@ class PreprocessData:
         train_cache_nopad = self.__build_data(train_context_qas)
         dev_cache_nopad = self.__build_data(dev_context_qas)
 
-        self.squad_attr['train_size'] = len(train_cache_nopad['answer_range'])
-        self.squad_attr['dev_size'] = len(dev_cache_nopad['answer_range'])
+        self.__squad_attr['train_size'] = len(train_cache_nopad['answer_range'])
+        self.__squad_attr['dev_size'] = len(dev_cache_nopad['answer_range'])
 
         logger.info('padding id vectors...')
-        self.squad_data['train'] = {
-            'context': self.__pad_sequences(train_cache_nopad['context'], maxlen=self.max_context_token_len, padding='post'),
-            'question': self.__pad_sequences(train_cache_nopad['question'], maxlen=self.max_question_token_len, padding='post'),
+        self.__squad_data['train'] = {
+            'context': self.__pad_sequences(train_cache_nopad['context'], maxlen=self.__max_context_token_len,
+                                            padding='post'),
+            'question': self.__pad_sequences(train_cache_nopad['question'], maxlen=self.__max_question_token_len,
+                                             padding='post'),
             'answer_range': self.__pad_sequences(train_cache_nopad['answer_range'], maxlen=1, padding='post')}
-        self.squad_data['dev'] = {
-            'context': self.__pad_sequences(dev_cache_nopad['context'], maxlen=self.max_context_token_len, padding='post'),
-            'question': self.__pad_sequences(dev_cache_nopad['question'], maxlen=self.max_question_token_len, padding='post'),
-            'answer_range': self.__pad_sequences(dev_cache_nopad['answer_range'], maxlen=self.max_answer_len, padding='post')}
+        self.__squad_data['dev'] = {
+            'context': self.__pad_sequences(dev_cache_nopad['context'], maxlen=self.__max_context_token_len,
+                                            padding='post'),
+            'question': self.__pad_sequences(dev_cache_nopad['question'], maxlen=self.__max_question_token_len,
+                                             padding='post'),
+            'answer_range': self.__pad_sequences(dev_cache_nopad['answer_range'], maxlen=self.__max_answer_len,
+                                                 padding='post')}
 
         logger.info('export to hdf5 file...')
         self.__export_squad_hdf5()
-        if not self.is_exist_glove_hdf5:
+        if not self.__is_exist_glove_hdf5:
             self.__export_glove_hdf5()
 
         logger.info('finished.')

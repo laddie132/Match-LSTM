@@ -4,7 +4,6 @@
 __author__ = 'han'
 
 import os
-import yaml
 import torch
 import logging
 import numpy as np
@@ -13,10 +12,10 @@ import torch.functional as F
 import torch.optim as optim
 from dataset.preprocess_data import PreprocessData
 from dataset.squad_dataset import SquadDataset
-from models.match_lstm import MatchLSTM
+from models.match_lstm import MatchLSTMModel
 from utils.load_config import init_logging, read_config
 
-torch.manual_seed(1)
+
 init_logging()
 logger = logging.getLogger(__name__)
 
@@ -26,6 +25,20 @@ def main():
     logger.info('loading config file...')
     global_config = read_config()
 
+    # set random seed
+    seed = global_config['train']['random_seed']
+    enable_cuda = global_config['train']['enable_cuda']
+    torch.manual_seed(seed)
+    if enable_cuda:
+        torch.cuda.manual_seed(seed)
+
+    if torch.cuda.is_available() and not enable_cuda:
+        logger.warning("CUDA is avaliable, you can enable CUDA in config file")
+    elif not torch.cuda.is_available() and enable_cuda:
+        logger.error("CUDA is not abaliable, please unable CUDA in config file")
+        exit(-1)
+
+    # handle dataset
     is_exist_dataset_h5 = os.path.exists(global_config['data']['dataset_h5'])
     is_exist_embedding_h5 = os.path.exists(global_config['data']['embedding_h5'])
     logger.info('%s dataset hdf5 file' % ("found" if is_exist_dataset_h5 else "not found"))
@@ -33,19 +46,23 @@ def main():
 
     if (not is_exist_dataset_h5) or (not is_exist_embedding_h5):
         logger.info('preprocess data...')
-        PreprocessData(global_config)
+        preprocess = PreprocessData(global_config)
+        preprocess.run()
 
     logger.info('reading squad dataset...')
     dataset = SquadDataset(squad_h5_path=global_config['data']['dataset_h5'])
 
     logger.info('constructing model...')
-    model = MatchLSTM(global_config)
+    model = MatchLSTMModel(global_config)
     criterion = nn.NLLLoss()
+    if enable_cuda:
+        model = model.cuda()
+        criterion = criterion.cuda()
 
     # optimizer
     optimizer_choose = global_config['train']['optimizer']
-    optimizer_lr = float(global_config['model']['learning_rate'])
-    optimizer_beta = (float(global_config['model']['adamax_beta1']), float(global_config['model']['adamax_beta2']))
+    optimizer_lr = global_config['model']['learning_rate']
+    optimizer_beta = (global_config['model']['adamax_beta1'], global_config['model']['adamax_beta2'])
     optimizer_param = filter(lambda p: p.requires_grad, model.parameters())
     optimizer = optim.Adamax(optimizer_param,
                              lr=optimizer_lr,
@@ -59,12 +76,12 @@ def main():
                                lr=optimizer_lr,
                                betas=optimizer_beta)
     elif optimizer_choose != "adamax":
-        raise ValueError('optimizer "%s" in config file not recoginized' % optimizer_choose)
+        logger.error('optimizer "%s" in config file not recoginized, use default: adamax' % optimizer_choose)
 
     logger.info('start training...')
-    batch_size = int(global_config['train']['batch_size'])
+    batch_size = global_config['train']['batch_size']
     # every epoch
-    for epoch in range(int(global_config['train']['epoch'])):
+    for epoch in range(global_config['train']['epoch']):
         batch_gen = dataset.get_batch_gen(batch_size)
         num_batch = 0
         sum_loss = 0.
