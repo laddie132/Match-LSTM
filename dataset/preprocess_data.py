@@ -11,6 +11,7 @@ import h5py
 import logging
 import numpy as np
 from functools import reduce
+from utils.utils import pad_sequences
 
 logger = logging.getLogger(__name__)
 
@@ -189,7 +190,7 @@ class PreprocessData:
         else:
             logger.debug("read glove from hdf5 file %s" % self.__export_glove_path)
             with h5py.File(self.__export_glove_path, 'r') as f:
-                words = f['id2word']
+                words = np.array(f['id2word'])
             self.__word2id = dict(zip(words, range(len(words))))
 
     def __export_glove_hdf5(self):
@@ -231,7 +232,8 @@ class PreprocessData:
             data_grp = f.create_group(key)
 
             for sub_key, sub_value in value.items():
-                data = data_grp.create_dataset(sub_key, sub_value.shape, dtype=sub_value.dtype, **self.__compress_option)
+                data = data_grp.create_dataset(sub_key, sub_value.shape, dtype=sub_value.dtype,
+                                               **self.__compress_option)
                 data[...] = sub_value
 
         f.flush()
@@ -258,18 +260,18 @@ class PreprocessData:
 
         logger.info('padding id vectors...')
         self.__squad_data['train'] = {
-            'context': self.__pad_sequences(train_cache_nopad['context'], maxlen=self.__max_context_token_len,
-                                            padding='post'),
-            'question': self.__pad_sequences(train_cache_nopad['question'], maxlen=self.__max_question_token_len,
-                                             padding='post'),
-            'answer_range': self.__pad_sequences(train_cache_nopad['answer_range'], maxlen=1, padding='post')}
+            'context': pad_sequences(train_cache_nopad['context'], maxlen=self.__max_context_token_len,
+                                     padding='post'),
+            'question': pad_sequences(train_cache_nopad['question'], maxlen=self.__max_question_token_len,
+                                      padding='post'),
+            'answer_range': pad_sequences(train_cache_nopad['answer_range'], maxlen=2, padding='post')}
         self.__squad_data['dev'] = {
-            'context': self.__pad_sequences(dev_cache_nopad['context'], maxlen=self.__max_context_token_len,
-                                            padding='post'),
-            'question': self.__pad_sequences(dev_cache_nopad['question'], maxlen=self.__max_question_token_len,
-                                             padding='post'),
-            'answer_range': self.__pad_sequences(dev_cache_nopad['answer_range'], maxlen=self.__max_answer_len,
-                                                 padding='post')}
+            'context': pad_sequences(dev_cache_nopad['context'], maxlen=self.__max_context_token_len,
+                                     padding='post'),
+            'question': pad_sequences(dev_cache_nopad['question'], maxlen=self.__max_question_token_len,
+                                      padding='post'),
+            'answer_range': pad_sequences(dev_cache_nopad['answer_range'], maxlen=self.__max_answer_len,
+                                          padding='post')}
 
         logger.info('export to hdf5 file...')
         self.__export_squad_hdf5()
@@ -277,63 +279,3 @@ class PreprocessData:
             self.__export_glove_hdf5()
 
         logger.info('finished.')
-
-    def __pad_sequences(self, sequences, maxlen=None, dtype='int32', padding='pre', truncating='pre', value=0.):
-        '''
-        FROM KERAS
-        Pads each sequence to the same length:
-        the length of the longest sequence.
-        If maxlen is provided, any sequence longer
-        than maxlen is truncated to maxlen.
-        Truncation happens off either the beginning (default) or
-        the end of the sequence.
-        Supports post-padding and pre-padding (default).
-        # Arguments
-            sequences: list of lists where each element is a sequence
-            maxlen: int, maximum length
-            dtype: type to cast the resulting sequence.
-            padding: 'pre' or 'post', pad either before or after each sequence.
-            truncating: 'pre' or 'post', remove values from sequences larger than
-                maxlen either in the beginning or in the end of the sequence
-            value: float, value to pad the sequences to the desired value.
-        # Returns
-            x: numpy array with dimensions (number_of_sequences, maxlen)
-        '''
-        lengths = [len(s) for s in sequences]
-
-        nb_samples = len(sequences)
-        if maxlen is None:
-            maxlen = np.max(lengths)
-
-        # take the sample shape from the first non empty sequence
-        # checking for consistency in the main loop below.
-        sample_shape = tuple()
-        for s in sequences:
-            if len(s) > 0:
-                sample_shape = np.asarray(s).shape[1:]
-                break
-
-        x = (np.ones((nb_samples, maxlen) + sample_shape) * value).astype(dtype)
-        for idx, s in enumerate(sequences):
-            if len(s) == 0:
-                continue  # empty list was found
-            if truncating == 'pre':
-                trunc = s[-maxlen:]
-            elif truncating == 'post':
-                trunc = s[:maxlen]
-            else:
-                raise ValueError('Truncating type "%s" not understood' % truncating)
-
-            # check `trunc` has expected shape
-            trunc = np.asarray(trunc, dtype=dtype)
-            if trunc.shape[1:] != sample_shape:
-                raise ValueError('Shape of sample %s of sequence at position %s is different from expected shape %s' %
-                                 (trunc.shape[1:], idx, sample_shape))
-
-            if padding == 'post':
-                x[idx, :len(trunc)] = trunc
-            elif padding == 'pre':
-                x[idx, -len(trunc):] = trunc
-            else:
-                raise ValueError('Padding type "%s" not understood' % padding)
-        return x

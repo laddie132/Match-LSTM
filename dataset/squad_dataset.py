@@ -5,6 +5,7 @@ __author__ = 'han'
 
 import h5py
 import numpy as np
+import torch
 
 
 class SquadDataset:
@@ -26,13 +27,31 @@ class SquadDataset:
             for key, value in f.attrs.items():
                 self.__attr[key] = value
 
-    def get_batch_gen(self, batch_size):
+    def get_batch_data(self, batch_size):
         """
-        a data batch generator
+        a train data batch
         :param batch_size:
         :return:
         """
-        pass
+        batch_data = []
+
+        train_data = self.__data['train']
+        data_size = len(train_data['context'])
+        i = 0
+        while i < data_size:
+            batch = {}
+            j = min(i + batch_size, data_size)
+            batch['context'] = self.__convert_variable(train_data['context'][i:j])
+            batch['question'] = self.__convert_variable(train_data['question'][i:j])
+            batch['answer_range'] = self.__convert_variable(train_data['answer_range'][i:j])
+
+            batch_data.append(batch)
+            i = j
+
+        return batch_data
+
+    def __convert_variable(self, np_array):
+        return torch.autograd.Variable(torch.from_numpy(np_array).type(torch.LongTensor))
 
     def get_data(self):
         return self.__data['train'], self.__data['dev']

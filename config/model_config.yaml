@@ -21,7 +21,7 @@ train:
   enable_cuda: False
   random_seed: 123
 
-  optimizer: 'adam'  # adam, sgd, adamax, (default is adamax)
+  optimizer: 'adamax'  # adam, sgd, adamax, (default is adamax)
   adamax_beta1: 0.9
   adamax_beta2: 0.999
   learning_rate: 0.002

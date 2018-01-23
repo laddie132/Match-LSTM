@@ -61,8 +61,8 @@ def main():
 
     # optimizer
     optimizer_choose = global_config['train']['optimizer']
-    optimizer_lr = global_config['model']['learning_rate']
-    optimizer_beta = (global_config['model']['adamax_beta1'], global_config['model']['adamax_beta2'])
+    optimizer_lr = global_config['train']['learning_rate']
+    optimizer_beta = (global_config['train']['adamax_beta1'], global_config['train']['adamax_beta2'])
     optimizer_param = filter(lambda p: p.requires_grad, model.parameters())
     optimizer = optim.Adamax(optimizer_param,
                              lr=optimizer_lr,
@@ -80,18 +80,18 @@ def main():
 
     logger.info('start training...')
     batch_size = global_config['train']['batch_size']
+    batch_list = dataset.get_batch_data(batch_size)
+
     # every epoch
     for epoch in range(global_config['train']['epoch']):
-        batch_gen = dataset.get_batch_gen(batch_size)
-        num_batch = 0
         sum_loss = 0.
 
         # every batch
-        for i in range(num_batch):
+        for i, batch in enumerate(batch_list):
             optimizer.zero_grad()
 
             # forward
-            bat_context, bat_question, bat_answer_range = batch_gen()
+            bat_context, bat_question, bat_answer_range = batch['context'], batch['question'], batch['answer_range']
             pred_answer_range = model.forward(bat_context, bat_question)
 
             # get loss
@@ -107,8 +107,7 @@ def main():
             logger.info('epoch=%d, batch=%d, sum_loss=%.5f, batch_loss=%.5f, lr=%.6f' % (
                 epoch, i, sum_loss, batch_loss, optimizer_lr))
 
-    with open(global_config['data']['model_path'], 'wb') as f:
-        torch.save(model, f)
+    torch.save(model.state_dict(), global_config['data']['model_path'])
 
     logger.info('finished.')
 
