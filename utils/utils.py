@@ -92,3 +92,13 @@ def pad_sequences(sequences, maxlen=None, dtype='int32', padding='pre', truncati
         else:
             raise ValueError('Padding type "%s" not understood' % padding)
     return x
+
+
+def batch_loss_func(loss_function, y_pred, y_true):
+    loss = []
+    for i in range(y_pred.shape[0]):
+        print(y_pred[i], y_true[i])
+        loss.append(loss_function(y_pred[i], y_true[i]))
+
+    loss_stack = torch.stack(loss)
+    return torch.mean(loss_stack)

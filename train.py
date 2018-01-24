@@ -14,6 +14,7 @@ from dataset.preprocess_data import PreprocessData
 from dataset.squad_dataset import SquadDataset
 from models.match_lstm import MatchLSTMModel
 from utils.load_config import init_logging, read_config
+from utils.utils import batch_loss_func
 
 
 init_logging()
@@ -95,8 +96,7 @@ def main():
             pred_answer_range = model.forward(bat_context, bat_question)
 
             # get loss
-            loss = criterion(pred_answer_range, bat_answer_range)
-            loss = torch.mean(loss)
+            loss = batch_loss_func(criterion, pred_answer_range, bat_answer_range)
             loss.backward()
             optimizer.step()    # update parameters
 

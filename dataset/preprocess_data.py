@@ -113,10 +113,43 @@ class PreprocessData:
 
                 cur_ans_range_ids = [0 for i in range(len(cur_answers) * 2)]
                 for idx, cur_ans in enumerate(cur_answers):
-                    cur_ans_text = nltk.word_tokenize(cur_ans['text'])
-                    pos_s = self.__find_sublist(cur_ans_text,
-                                                cur_context_toke)  # not consider find multi position in context
-                    pos_e = pos_s + len(cur_ans_text)
+                    cur_ans_start = cur_ans['answer_start']
+                    cur_ans_text = cur_ans['text']
+
+                    # add '.' help word tokenize
+                    prev_context_token = nltk.word_tokenize(cur_context[:cur_ans_start] + '.')
+                    if prev_context_token[len(prev_context_token)-1] == '.':
+                        prev_context_token = prev_context_token[:len(prev_context_token) - 1]
+
+                    # if answer start word not the same in context
+                    last_pos = len(prev_context_token)-1
+                    while len(prev_context_token) > 0 and prev_context_token[last_pos] != cur_context_toke[last_pos]:
+                        prev_context_token = prev_context_token[:last_pos]
+                        last_pos = len(prev_context_token) - 1
+                    pos_s = len(prev_context_token)
+
+                    # find answer end position
+                    pos_e = 0
+                    tmp_str = ""
+                    tmp_ans = cur_ans_text.replace(' ', '').replace('\u202f', '')
+                    if tmp_ans[0] == '.':           # squad dataset have some mistakes
+                        tmp_ans = tmp_ans[1:]
+
+                    for i in range(pos_s, len(cur_context_toke)):
+                        s = cur_context_toke[i]
+                        if s == '``' or s == "''":      # because nltk word_tokenize will replace them
+                            s = '"'
+
+                        tmp_str += s
+                        if tmp_ans in tmp_str:
+                            pos_e = i + 1
+                            break
+
+                    if pos_e <= pos_s:
+                        logger.error("Answer start position can't bigger than end position." +
+                                     "\nContext:" + cur_context +
+                                     "\nQuestion:" + cur_question +
+                                     "\nAnswer:" + cur_ans_text)
 
                     cur_ans_range_ids[(idx * 2):(idx * 2 + 2)] = [pos_s, pos_e]
 
@@ -125,19 +158,6 @@ class PreprocessData:
         return {'context': contexts_wid,
                 'question': questions_wid,
                 'answer_range': answers_range_wid}
-
-    def __find_sublist(self, query, base):
-        """
-        find sublist`s start position in a base list
-        :param query: query sublist
-        :param base: base list
-        :return:
-        """
-        for i in range(len(base)):
-            if base[i:(i + len(query))] == query:
-                return i
-
-        return -1
 
     def __sentence_to_id(self, sentence):
         """
