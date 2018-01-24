@@ -6,15 +6,14 @@ __author__ = 'han'
 import os
 import torch
 import logging
-import numpy as np
 import torch.nn as nn
-import torch.functional as F
 import torch.optim as optim
 from dataset.preprocess_data import PreprocessData
 from dataset.squad_dataset import SquadDataset
 from models.match_lstm import MatchLSTMModel
 from utils.load_config import init_logging, read_config
 from utils.utils import batch_loss_func
+import eval
 
 
 init_logging()
@@ -81,7 +80,7 @@ def main():
 
     logger.info('start training...')
     batch_size = global_config['train']['batch_size']
-    batch_list = dataset.get_batch_data(batch_size)
+    batch_list = dataset.get_batch_train(batch_size)
 
     # every epoch
     for epoch in range(global_config['train']['epoch']):
@@ -108,8 +107,10 @@ def main():
                 epoch, i, sum_loss, batch_loss, optimizer_lr))
 
     torch.save(model.state_dict(), global_config['data']['model_path'])
-
     logger.info('finished.')
+
+    # evaluate on the dev data
+    eval.main()
 
 
 if __name__ == '__main__':

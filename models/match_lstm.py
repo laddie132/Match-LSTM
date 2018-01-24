@@ -60,5 +60,4 @@ class MatchLSTMModel(torch.nn.Module):
         qt_aware_ct = self.match_lstm.forward(context_encode, question_encode)
         answer_range = self.pointer_net.forward(qt_aware_ct)
 
-        # answer = torch.max(answer_range, 2)[1]
         return answer_range.transpose(0, 1)

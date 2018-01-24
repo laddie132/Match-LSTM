@@ -27,7 +27,7 @@ class SquadDataset:
             for key, value in f.attrs.items():
                 self.__attr[key] = value
 
-    def get_batch_data(self, batch_size):
+    def get_batch_train(self, batch_size):
         """
         a train data batch
         :param batch_size:
@@ -53,5 +53,5 @@ class SquadDataset:
     def __convert_variable(self, np_array):
         return torch.autograd.Variable(torch.from_numpy(np_array).type(torch.LongTensor))
 
-    def get_data(self):
-        return self.__data['train'], self.__data['dev']
+    def get_dev_data(self):
+        return self.__data['dev']

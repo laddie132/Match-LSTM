@@ -6,10 +6,6 @@ __author__ = 'han'
 import os
 import torch
 import logging
-import numpy as np
-import torch.nn as nn
-import torch.functional as F
-import torch.optim as optim
 from dataset.preprocess_data import PreprocessData
 from dataset.squad_dataset import SquadDataset
 from models.match_lstm import MatchLSTMModel
@@ -47,6 +43,64 @@ def main():
         logger.info('preprocess data...')
         preprocess = PreprocessData(global_config)
         preprocess.run()
+
+    logger.info('reading squad dataset...')
+    dataset = SquadDataset(squad_h5_path=global_config['data']['dataset_h5'])
+
+    logger.info('constructing model...')
+    model = MatchLSTMModel(global_config)
+
+    logger.info('start evaluating...')
+    dev_data = dataset.get_dev_data()
+
+    # forward
+    batch_context, batch_question, batch_answer_range = dev_data['context'], dev_data['question'], dev_data['answer_range']
+    pred_answer_prop = model.forward(batch_context, batch_question)
+    pred_answer_range = torch.max(pred_answer_prop, 2)[1]
+
+    # calculate the mean em and f1 score
+    num_em = 0
+    score_f1 = 0.
+    batch_size = pred_answer_range.shape[0]
+    for i in batch_size:
+        if evaluate_em(pred_answer_range[i], dev_data['answer_range'][i]):
+            num_em += 1
+        score_f1 += evaluate_f1(batch_context[i], pred_answer_range[i], batch_answer_range[i])
+
+    score_em = num_em * 1. / batch_size
+    score_f1 /= batch_size
+
+    logger.info("eval data size: " + batch_size)
+    logger.info("em: " + str(score_em) + " f1:" + str(score_f1))
+
+
+def evaluate_em(y_pred, y_true):
+    """
+    exact match score
+    :param y_pred: (answer_len,)
+    :param y_true: (condidate_answer_len,)
+    :return: bool
+    """
+    answer_len = 2
+    candidate_answer_size = int(len(y_true)/answer_len)
+
+    for i in range(candidate_answer_size):
+        if y_true[(i * 2):(i * 2 + 2)] == y_pred:
+            return True
+
+    return False
+
+
+def evaluate_f1(context_tokens, y_pred, y_true):
+    """
+    treat answer as bag of tokens, calculate F1 score
+    :param context_tokens: context with word tokens
+    :param y_pred: (answer_len,)
+    :param y_true: (condidate_answer_len,)
+    :return: float
+    """
+    #todo: OOV不能采用word index比较，需重新考虑preprocessing步骤
+    pass
 
 
 if __name__ == '__main__':

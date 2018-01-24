@@ -28,16 +28,16 @@ class GloveEmbedding(torch.nn.Module):
         self.n_embeddings, self.len_embedding, self.weights = self.load_glove_hdf5()
 
         self.embedding_layer = torch.nn.Embedding(num_embeddings=self.n_embeddings, embedding_dim=self.len_embedding)
-        # self.embedding_layer.weight = torch.nn.Parameter(self.weights)
-        # self.embedding_layer.weight.requires_grad = False
+        self.embedding_layer.weight = torch.nn.Parameter(self.weights)
+        self.embedding_layer.weight.requires_grad = False
 
     def load_glove_hdf5(self):
         with h5py.File(self.glove_h5_path, 'r') as f:
-            # id2vec = np.array(f['id2vec'])                  # need 39s
+            id2vec = np.array(f['id2vec'])                  # need 39s
             word_dict_size = f.attrs['word_dict_size']
             embedding_size = f.attrs['embedding_size']
 
-            id2vec = np.zeros((1, 2), dtype=np.int64)
+            # id2vec = np.zeros((1, 2), dtype=np.int64)
 
         return int(word_dict_size), int(embedding_size), torch.from_numpy(id2vec)
 
@@ -77,7 +77,7 @@ class MatchLSTMAttention(torch.nn.Module):
         wg_g = self.linear_wg(G)\
             .squeeze(2)\
             .transpose(0, 1)                            # (batch, question_len)
-        alpha = F.softmax(wg_g, dim=0)                  # (batch, question_len)
+        alpha = F.softmax(wg_g, dim=0)                  # (batch, question_len) todo: log_softmax
 
         return alpha
 
@@ -198,7 +198,7 @@ class PointerAttention(torch.nn.Module):
         beta_tmp = self.linear_wf(f)\
             .squeeze(2)\
             .transpose(0, 1)                                # (batch, context_len)
-        beta = F.softmax(beta_tmp, dim=0)
+        beta = F.softmax(beta_tmp, dim=0)                   # todo: log_softmax
 
         return beta
 
