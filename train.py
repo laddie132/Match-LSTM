@@ -12,7 +12,7 @@ from dataset.preprocess_data import PreprocessData
 from dataset.squad_dataset import SquadDataset
 from models.match_lstm import MatchLSTMModel
 from utils.load_config import init_logging, read_config
-from utils.utils import batch_loss_func
+from utils.utils import MyNLLLoss
 import eval
 
 
@@ -54,7 +54,7 @@ def main():
 
     logger.info('constructing model...')
     model = MatchLSTMModel(global_config)
-    criterion = nn.NLLLoss()
+    criterion = MyNLLLoss()
     if enable_cuda:
         model = model.cuda()
         criterion = criterion.cuda()
@@ -95,7 +95,7 @@ def main():
             pred_answer_range = model.forward(bat_context, bat_question)
 
             # get loss
-            loss = batch_loss_func(criterion, pred_answer_range, bat_answer_range)
+            loss = criterion(pred_answer_range, bat_answer_range)
             loss.backward()
             optimizer.step()    # update parameters
 
