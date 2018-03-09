@@ -82,8 +82,6 @@ def main():
 
     # every epoch
     for epoch in range(global_config['train']['epoch']):
-        sum_loss = 0.
-
         # every batch
         for i, batch in enumerate(batch_list):
             optimizer.zero_grad()
@@ -99,10 +97,9 @@ def main():
 
             # logging
             batch_loss = loss.cpu().data.numpy()
-            sum_loss += batch_loss * batch_size
 
-            logger.info('epoch=%d, batch=%d, sum_loss=%.5f, batch_loss=%.5f, lr=%.6f' % (
-                epoch, i, sum_loss, batch_loss, optimizer_lr))
+            logger.info('epoch=%d, batch=%d, loss=%.5f, lr=%.6f' % (
+                epoch, i, batch_loss, optimizer_lr))
 
     torch.save(model.state_dict(), global_config['data']['model_path'])
     logger.info('finished.')

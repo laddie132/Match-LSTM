@@ -97,10 +97,11 @@ class UniMatchLSTM(torch.nn.Module):
         Hr(context_len, batch, hidden_size): question-aware context representation
     """
 
-    def __init__(self, input_size, hidden_size):
+    def __init__(self, input_size, hidden_size, enable_cuda):
         super(UniMatchLSTM,self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
+        self.enable_cuda = enable_cuda
 
         self.attention = MatchLSTMAttention(input_size, hidden_size)
         self.lstm = torch.nn.LSTMCell(input_size=2*input_size, hidden_size=hidden_size)
@@ -108,7 +109,7 @@ class UniMatchLSTM(torch.nn.Module):
     def forward(self, Hp, Hq):
         batch_size = Hp.shape[1]
         context_len = Hp.shape[0]
-        hidden = [init_hidden_cell(batch_size, self.hidden_size)]
+        hidden = [init_hidden_cell(batch_size, self.hidden_size, self.enable_cuda)]
 
         for t in range(context_len):
             cur_hp = Hp[t, ...].squeeze(0)                              # (batch, input_size)
@@ -141,19 +142,23 @@ class MatchLSTM(torch.nn.Module):
     Outputs:
         Hr(context_len, batch, hidden_size * num_directions): question-aware context representation
     """
-    def __init__(self, input_size, hidden_size, bidirectional):
+    def __init__(self, input_size, hidden_size, bidirectional, enable_cuda):
         super(MatchLSTM, self).__init__()
         self.bidirectional = bidirectional
         self.num_directions = 1 if bidirectional else 2
+        self.enable_cuda = enable_cuda
 
-        self.left_match_lstm = UniMatchLSTM(input_size, hidden_size)
+        self.left_match_lstm = UniMatchLSTM(input_size, hidden_size, enable_cuda)
 
         if bidirectional:
-            self.right_match_lstm = UniMatchLSTM(input_size, hidden_size)
+            self.right_match_lstm = UniMatchLSTM(input_size, hidden_size, enable_cuda)
 
     def flip(self, tensor, dim=0):
         idx = [i for i in range(tensor.size(dim) - 1, -1, -1)]
         idx = torch.autograd.Variable(torch.LongTensor(idx))
+        if self.enable_cuda:
+            idx = idx.cuda()
+
         inverted_tensor = tensor.index_select(dim, idx)
         return inverted_tensor
 
@@ -235,18 +240,19 @@ class BoundaryPointer(torch.nn.Module):
     """
     answer_len = 2
 
-    def __init__(self, input_size, hidden_size):
+    def __init__(self, input_size, hidden_size, enable_cuda):
         super(BoundaryPointer, self).__init__()
 
         self.input_size = input_size
         self.hidden_size = hidden_size
+        self.enable_cuda = enable_cuda
 
         self.attention = PointerAttention(input_size, hidden_size)
         self.lstm = torch.nn.LSTMCell(input_size, hidden_size)
 
     def forward(self, Hr):
         batch_size = Hr.shape[1]
-        hidden = init_hidden_cell(batch_size, self.hidden_size)
+        hidden = init_hidden_cell(batch_size, self.hidden_size, self.enable_cuda)
         beta_out = []
 
         for t in range(self.answer_len):

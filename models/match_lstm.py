@@ -33,6 +33,8 @@ class MatchLSTMModel(torch.nn.Module):
         hidden_size = global_config['model']['hidden_size']
         encoder_bidirection = global_config['model']['encoder_bidirection']
 
+        self.enable_cuda = global_config['train']['enable_cuda']
+
         self.hidden_size = hidden_size
         self.embedding = GloveEmbedding(dataset_h5_path=global_config['data']['dataset_h5'])
         self.encoder = nn.LSTM(input_size=embedding_size,
@@ -43,13 +45,15 @@ class MatchLSTMModel(torch.nn.Module):
             encode_out_size *= 2
         self.match_lstm = MatchLSTM(input_size=encode_out_size,
                                     hidden_size=hidden_size,
-                                    bidirectional=True)
+                                    bidirectional=True,
+                                    enable_cuda=self.enable_cuda)
         self.pointer_net = BoundaryPointer(input_size=hidden_size*2,
-                                           hidden_size=hidden_size)
+                                           hidden_size=hidden_size,
+                                           enable_cuda=self.enable_cuda)
 
     def forward(self, context, question):
         batch_size = context.shape[0]
-        hidden = init_hidden(1, batch_size, self.hidden_size)
+        hidden = init_hidden(1, batch_size, self.hidden_size, self.enable_cuda)
 
         context_vec = self.embedding.forward(context).transpose(0, 1)
         question_vec = self.embedding.forward(question).transpose(0, 1)

@@ -9,7 +9,7 @@ from torch.autograd import Variable
 import numpy as np
 
 
-def init_hidden(num_layers_directions, batch, hidden_size):
+def init_hidden(num_layers_directions, batch, hidden_size, enable_cuda):
     """
     lstm init hidden out, state
     :param num_layers_directions: num_layers \* num_directions
@@ -17,18 +17,24 @@ def init_hidden(num_layers_directions, batch, hidden_size):
     :param hidden_size: 
     :return: 
     """
+    if enable_cuda:
+        return (Variable(torch.zeros(num_layers_directions, batch, hidden_size)).cuda(),
+                Variable(torch.zeros(num_layers_directions, batch, hidden_size)).cuda())
 
     return (Variable(torch.zeros(num_layers_directions, batch, hidden_size)),
             Variable(torch.zeros(num_layers_directions, batch, hidden_size)))
 
 
-def init_hidden_cell(batch, hidden_size):
+def init_hidden_cell(batch, hidden_size, enable_cuda):
     """
     lstm init hidden out, state
     :param batch:
     :param hidden_size:
     :return:
     """
+    if enable_cuda:
+        return (Variable(torch.zeros(batch, hidden_size)).cuda(),
+                Variable(torch.zeros(batch, hidden_size)).cuda())
 
     return (Variable(torch.zeros(batch, hidden_size)),
             Variable(torch.zeros(batch, hidden_size)))
