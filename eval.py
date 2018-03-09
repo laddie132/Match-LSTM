@@ -99,8 +99,24 @@ def evaluate_f1(context_tokens, y_pred, y_true):
     :param y_true: (condidate_answer_len,)
     :return: float
     """
-    #todo: OOV不能采用word index比较，需重新考虑preprocessing步骤
-    pass
+    answer_len = 2
+    candidate_answer_size = int(len(y_true) / answer_len)
+
+    pred_tokens = set(context_tokens[y_pred[0]:y_pred[1]])
+    all_f1 = []
+
+    for i in range(candidate_answer_size):
+        tmp_true = y_true[(i * 2):(i * 2 + 2)]
+        true_tokens = set(context_tokens[tmp_true[0]:tmp_true[1]])
+        same_tokens = pred_tokens.union(true_tokens)
+
+        precision = len(same_tokens) * 1. / len(pred_tokens)
+        recall = len(same_tokens) * 1. / len(true_tokens)
+
+        f1 = 2 * precision * recall / (precision + recall)
+        all_f1.append(f1)
+
+    return max(all_f1)
 
 
 if __name__ == '__main__':

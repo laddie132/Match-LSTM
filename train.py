@@ -78,7 +78,7 @@ def main():
 
     logger.info('start training...')
     batch_size = global_config['train']['batch_size']
-    batch_list = dataset.get_batch_train(batch_size)
+    batch_list = dataset.get_batch_train(batch_size, enable_cuda)
 
     # every epoch
     for epoch in range(global_config['train']['epoch']):
