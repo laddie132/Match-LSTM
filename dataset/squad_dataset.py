@@ -19,10 +19,12 @@ class SquadDataset:
 
     def load_hdf5(self, squad_h5_path):
         with h5py.File(squad_h5_path, 'r') as f:
+            f_data = f['data']
+
             for name in ['train', 'dev']:
                 self.__data[name] = {}
                 for sub_name in ['context', 'question', 'answer_range']:
-                    self.__data[name][sub_name] = np.array(f[name][sub_name])
+                    self.__data[name][sub_name] = np.array(f_data[name][sub_name])
 
             for key, value in f.attrs.items():
                 self.__attr[key] = value

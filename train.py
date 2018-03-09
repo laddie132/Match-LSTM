@@ -40,11 +40,9 @@ def main():
 
     # handle dataset
     is_exist_dataset_h5 = os.path.exists(global_config['data']['dataset_h5'])
-    is_exist_embedding_h5 = os.path.exists(global_config['data']['embedding_h5'])
     logger.info('%s dataset hdf5 file' % ("found" if is_exist_dataset_h5 else "not found"))
-    logger.info('%s glove hdf5 file' % ("found" if is_exist_embedding_h5 else "not found"))
 
-    if (not is_exist_dataset_h5) or (not is_exist_embedding_h5):
+    if not is_exist_dataset_h5:
         logger.info('preprocess data...')
         preprocess = PreprocessData(global_config)
         preprocess.run()

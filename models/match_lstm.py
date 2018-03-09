@@ -34,7 +34,7 @@ class MatchLSTMModel(torch.nn.Module):
         encoder_bidirection = global_config['model']['encoder_bidirection']
 
         self.hidden_size = hidden_size
-        self.embedding = GloveEmbedding(glove_h5_path=global_config['data']['embedding_h5'])
+        self.embedding = GloveEmbedding(dataset_h5_path=global_config['data']['dataset_h5'])
         self.encoder = nn.LSTM(input_size=embedding_size,
                                hidden_size=hidden_size,
                                bidirectional=encoder_bidirection)

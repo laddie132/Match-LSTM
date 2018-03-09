@@ -22,7 +22,6 @@ class PreprocessData:
     """
 
     padding = '__padding__'  # id = 0
-    oov = '__oov__'  # id = 1
 
     __compress_option = dict(compression="gzip", compression_opts=9, shuffle=False)
 
@@ -31,24 +30,25 @@ class PreprocessData:
         self.__dev_path = ''
         self.__train_path = ''
         self.__export_squad_path = ''
-        self.__export_glove_path = ''
         self.__glove_path = ''
         self.__embedding_size = 300
         self.__load_config(global_config)
 
         # preprocess config
-        self.__word2id = {}
         self.__max_context_token_len = 0
         self.__max_question_token_len = 0
         self.__max_answer_len = 0
 
-        self.__is_exist_glove_hdf5 = os.path.exists(self.__export_glove_path)
+        # temp data
+        self.__word2id = {self.padding: 0}
+        self.__word2vec = {self.padding: [0. for i in range(self.__embedding_size)]}
+        self.__oov_num = 0
 
         # data need to store in hdf5 file
-        self.__glove_data = {}
-        self.__squad_data = {}
-        self.__glove_attr = {}
-        self.__squad_attr = {}
+        self.__meta_data = {'id2vec': [[0. for i in range(self.__embedding_size)]],
+                            'id2word': [self.padding]}
+        self.__data = {}
+        self.__attr = {}
 
     def __load_config(self, global_config):
         """
@@ -60,7 +60,6 @@ class PreprocessData:
         self.__train_path = data_config['dataset']['train_path']
         self.__dev_path = data_config['dataset']['dev_path']
         self.__export_squad_path = data_config['dataset_h5']
-        self.__export_glove_path = data_config['embedding_h5']
         self.__glove_path = data_config['embedding_path']
         self.__embedding_size = int(global_config['model']['embedding_size'])
 
@@ -77,7 +76,7 @@ class PreprocessData:
         data_list_tmp = [ele['paragraphs'] for ele in data['data']]
         contexts_qas = reduce(lambda a, b: a + b, data_list_tmp)
 
-        self.__squad_attr['name'] = 'squad-' + version
+        self.__attr['dataset_name'] = 'squad-' + version
         return contexts_qas
 
     def __build_data(self, contexts_qas):
@@ -168,73 +167,42 @@ class PreprocessData:
 
         ids = []
         for word in sentence:
-            if word in self.__word2id:
-                ids.append(self.__word2id[word])
-            else:
-                ids.append(self.__word2id[self.oov])
+            if word not in self.__word2id:
+                self.__word2id[word] = len(self.__word2id)
+                self.__meta_data['id2word'].append(word)
+
+                # whether OOV
+                if word in self.__word2vec:
+                    self.__meta_data['id2vec'].append(self.__word2vec[word])
+                else:
+                    self.__oov_num += 1
+                    logger.debug('No.%d OOV word %s' % (self.__oov_num, word))
+                    self.__meta_data['id2vec'].append([0. for i in range(self.__embedding_size)])
+            ids.append(self.__word2id[word])
 
         return ids
 
     def __handle_glove(self):
         """
-        handle glove embeddings, transform text to hdf5 data or just read hdf5 file with word2id
+        handle glove embeddings, restore embeddings with dictionary
         :return:
         """
-        if not self.__is_exist_glove_hdf5:
-            logger.debug("read glove from text file %s" % self.__glove_path)
-            with zipfile.ZipFile(self.__glove_path, 'r') as zf:
-                if len(zf.namelist()) != 1:
-                    raise ValueError('glove file "%s" not recognized' % self.__glove_path)
+        logger.debug("read glove from text file %s" % self.__glove_path)
+        with zipfile.ZipFile(self.__glove_path, 'r') as zf:
+            if len(zf.namelist()) != 1:
+                raise ValueError('glove file "%s" not recognized' % self.__glove_path)
 
-                glove_name = zf.namelist()[0]
+            glove_name = zf.namelist()[0]
 
-                words = [self.padding, self.oov]
-                embeddings = [[0. for i in range(self.__embedding_size)], [0. for i in range(self.__embedding_size)]]
+            word_num = 0
+            with zf.open(glove_name) as f:
+                for line in f:
+                    line_split = line.decode('utf-8').split(' ')
+                    self.__word2vec[line_split[0]] = [float(x) for x in line_split[1:]]
 
-                word_num = 0
-                with zf.open(glove_name) as f:
-                    for line in f:
-                        line_split = line.decode('utf-8').split(' ')
-                        words.append(line_split[0])
-                        embeddings.append([float(x) for x in line_split[1:]])
-
-                        word_num += 1
-                        if word_num % 10000 == 0:
-                            logger.debug('handle word No.%d' % word_num)
-
-                self.__glove_attr['word_dict_size'] = len(words)
-                self.__glove_attr['embedding_size'] = self.__embedding_size
-                self.__glove_data['id2word'] = np.array(words, dtype=np.str)
-                self.__glove_data['id2vec'] = np.array(embeddings, dtype=np.float32)
-                self.__word2id = dict(zip(words, range(len(words))))
-        else:
-            logger.debug("read glove from hdf5 file %s" % self.__export_glove_path)
-            with h5py.File(self.__export_glove_path, 'r') as f:
-                words = np.array(f['id2word'])
-            self.__word2id = dict(zip(words, range(len(words))))
-
-    def __export_glove_hdf5(self):
-        """
-        export glove embeddings to hdf5 file
-        :return:
-        """
-        f = h5py.File(self.__export_glove_path, 'w')
-        str_dt = h5py.special_dtype(vlen=str)
-
-        # attributes
-        for attr_name in self.__glove_attr:
-            f.attrs[attr_name] = self.__glove_attr[attr_name]
-
-        # data
-        for key, value in self.__glove_data.items():
-            dt = value.dtype
-            if type(value[0]) == np.str_:
-                dt = str_dt
-            data = f.create_dataset(key, value.shape, dtype=dt, **self.__compress_option)
-            data[...] = value
-
-        f.flush()
-        f.close()
+                    word_num += 1
+                    if word_num % 10000 == 0:
+                        logger.debug('handle word No.%d' % word_num)
 
     def __export_squad_hdf5(self):
         """
@@ -242,14 +210,27 @@ class PreprocessData:
         :return:
         """
         f = h5py.File(self.__export_squad_path, 'w')
+        str_dt = h5py.special_dtype(vlen=str)
 
         # attributes
-        for attr_name in self.__squad_attr:
-            f.attrs[attr_name] = self.__squad_attr[attr_name]
+        for attr_name in self.__attr:
+            f.attrs[attr_name] = self.__attr[attr_name]
+
+        # meta_data
+        id2word = np.array(self.__meta_data['id2word'], dtype=np.str)
+        id2vec = np.array(self.__meta_data['id2vec'], dtype=np.float32)
+        f_meta_data = f.create_group('meta_data')
+
+        meta_data = f_meta_data.create_dataset('id2word', id2word.shape, dtype=str_dt, **self.__compress_option)
+        meta_data[...] = id2word
+
+        meta_data = f_meta_data.create_dataset('id2vec', id2vec.shape, dtype=id2vec.dtype, **self.__compress_option)
+        meta_data[...] = id2vec
 
         # data
-        for key, value in self.__squad_data.items():
-            data_grp = f.create_group(key)
+        f_data = f.create_group('data')
+        for key, value in self.__data.items():
+            data_grp = f_data.create_group(key)
 
             for sub_key, sub_value in value.items():
                 data = data_grp.create_dataset(sub_key, sub_value.shape, dtype=sub_value.dtype,
@@ -275,17 +256,20 @@ class PreprocessData:
         train_cache_nopad = self.__build_data(train_context_qas)
         dev_cache_nopad = self.__build_data(dev_context_qas)
 
-        self.__squad_attr['train_size'] = len(train_cache_nopad['answer_range'])
-        self.__squad_attr['dev_size'] = len(dev_cache_nopad['answer_range'])
+        self.__attr['train_size'] = len(train_cache_nopad['answer_range'])
+        self.__attr['dev_size'] = len(dev_cache_nopad['answer_range'])
+        self.__attr['word_dict_size'] = len(self.__word2id)
+        self.__attr['embedding_size'] = self.__embedding_size
+        self.__attr['oov_word_num'] = self.__oov_num
 
         logger.info('padding id vectors...')
-        self.__squad_data['train'] = {
+        self.__data['train'] = {
             'context': pad_sequences(train_cache_nopad['context'], maxlen=self.__max_context_token_len,
                                      padding='post'),
             'question': pad_sequences(train_cache_nopad['question'], maxlen=self.__max_question_token_len,
                                       padding='post'),
             'answer_range': pad_sequences(train_cache_nopad['answer_range'], maxlen=2, padding='post')}
-        self.__squad_data['dev'] = {
+        self.__data['dev'] = {
             'context': pad_sequences(dev_cache_nopad['context'], maxlen=self.__max_context_token_len,
                                      padding='post'),
             'question': pad_sequences(dev_cache_nopad['question'], maxlen=self.__max_question_token_len,
@@ -295,7 +279,5 @@ class PreprocessData:
 
         logger.info('export to hdf5 file...')
         self.__export_squad_hdf5()
-        if not self.__is_exist_glove_hdf5:
-            self.__export_glove_hdf5()
 
         logger.info('finished.')

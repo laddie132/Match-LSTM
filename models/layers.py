@@ -3,6 +3,7 @@
 
 __author__ = 'han'
 
+import time
 import h5py
 import torch
 from torch.autograd import Variable
@@ -22,9 +23,9 @@ class GloveEmbedding(torch.nn.Module):
         **output** tensor that change word index to word embeddings
     """
 
-    def __init__(self, glove_h5_path):
+    def __init__(self, dataset_h5_path):
         super(GloveEmbedding, self).__init__()
-        self.glove_h5_path = glove_h5_path
+        self.dataset_h5_path = dataset_h5_path
         self.n_embeddings, self.len_embedding, self.weights = self.load_glove_hdf5()
 
         self.embedding_layer = torch.nn.Embedding(num_embeddings=self.n_embeddings, embedding_dim=self.len_embedding)
@@ -32,12 +33,11 @@ class GloveEmbedding(torch.nn.Module):
         self.embedding_layer.weight.requires_grad = False
 
     def load_glove_hdf5(self):
-        with h5py.File(self.glove_h5_path, 'r') as f:
-            id2vec = np.array(f['id2vec'])                  # need 39s
+        with h5py.File(self.dataset_h5_path, 'r') as f:
+            f_meta_data = f['meta_data']
+            id2vec = np.array(f_meta_data['id2vec'])            # only need 1.11s
             word_dict_size = f.attrs['word_dict_size']
             embedding_size = f.attrs['embedding_size']
-
-            # id2vec = np.zeros((1, 2), dtype=np.int64)
 
         return int(word_dict_size), int(embedding_size), torch.from_numpy(id2vec)
 
