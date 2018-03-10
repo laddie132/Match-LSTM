@@ -128,6 +128,9 @@ def evaluate_f1(context_tokens, y_pred, y_true):
     all_f1 = []
     for i in range(candidate_answer_size):
         tmp_true = y_true[(i * 2):(i * 2 + 2)]
+        if tmp_true[1] == 0:
+            continue
+
         true_tokens = set(context_tokens[tmp_true[0]:tmp_true[1]])
         same_tokens = pred_tokens.union(true_tokens)
 

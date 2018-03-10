@@ -84,7 +84,7 @@ class SquadDataset:
         """
         batch_data = []
 
-        dev_data = self.__data['train']
+        dev_data = self.__data['dev']
         data_size = len(dev_data['context'])
         i = 0
         while i < data_size:
