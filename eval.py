@@ -21,8 +21,8 @@ def main():
     global_config = read_config()
 
     # set random seed
-    seed = global_config['train']['random_seed']
-    enable_cuda = global_config['train']['enable_cuda']
+    seed = global_config['test']['random_seed']
+    enable_cuda = global_config['test']['enable_cuda']
     torch.manual_seed(seed)
     if enable_cuda:
         torch.cuda.manual_seed(seed)
@@ -62,25 +62,34 @@ def main():
 
     # forward
     logger.info('forwarding...')
-    dev_data = dataset.get_dev_data(enable_cuda)
-    batch_context, batch_question, batch_answer_range = dev_data['context'], dev_data['question'], dev_data['answer_range']
-    pred_answer_prop = model.forward(batch_context, batch_question)
-    pred_answer_range = torch.max(pred_answer_prop, 2)[1]
 
-    # calculate the mean em and f1 score
-    logger.info('evaluating...')
+    batch_size = global_config['test']['batch_size']
+    batch_dev_data = dataset.get_batch_dev(batch_size, enable_cuda)
+
+    dev_data_size = 0
     num_em = 0
     score_f1 = 0.
-    batch_size = pred_answer_range.shape[0]
-    for i in batch_size:
-        if evaluate_em(pred_answer_range[i], dev_data['answer_range'][i]):
-            num_em += 1
-        score_f1 += evaluate_f1(batch_context[i], pred_answer_range[i], batch_answer_range[i])
+    for bnum, batch in enumerate(batch_dev_data):
+        bat_context, bat_question, bat_answer_range = batch['context'], batch['question'], batch['answer_range']
+        tmp_ans_prop = model.forward(bat_context, bat_question)
+        tmp_ans_range = torch.max(tmp_ans_prop, 2)[1]
 
-    score_em = num_em * 1. / batch_size
-    score_f1 /= batch_size
+        tmp_size = tmp_ans_range.shape[0]
+        dev_data_size += tmp_size
 
-    logger.info("eval data size: %d" % batch_size)
+        # calculate the mean em and f1 score
+        for i in range(tmp_size):
+            if evaluate_em(tmp_ans_range[i].cpu().data.numpy(), bat_answer_range[i].cpu().data.numpy()):
+                num_em += 1
+            score_f1 += evaluate_f1(bat_context[i].cpu().data.numpy(),
+                                    tmp_ans_range[i].cpu().data.numpy(),
+                                    bat_answer_range[i].cpu().data.numpy())
+        logger.info('batch=%d' % bnum)
+
+    score_em = num_em * 1. / dev_data_size
+    score_f1 /= dev_data_size
+
+    logger.info("eval data size: %d" % dev_data_size)
     logger.info("em: %.2f, f1: %.2f" % (score_em, score_f1))
 
 
@@ -95,7 +104,7 @@ def evaluate_em(y_pred, y_true):
     candidate_answer_size = int(len(y_true)/answer_len)
 
     for i in range(candidate_answer_size):
-        if y_true[(i * 2):(i * 2 + 2)] == y_pred:
+        if (y_true[(i * 2):(i * 2 + 2)] == y_pred).all():
             return True
 
     return False
@@ -113,8 +122,10 @@ def evaluate_f1(context_tokens, y_pred, y_true):
     candidate_answer_size = int(len(y_true) / answer_len)
 
     pred_tokens = set(context_tokens[y_pred[0]:y_pred[1]])
-    all_f1 = []
+    if len(pred_tokens) == 0:
+        return 0
 
+    all_f1 = []
     for i in range(candidate_answer_size):
         tmp_true = y_true[(i * 2):(i * 2 + 2)]
         true_tokens = set(context_tokens[tmp_true[0]:tmp_true[1]])

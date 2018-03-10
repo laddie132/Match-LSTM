@@ -74,3 +74,27 @@ class SquadDataset:
         }
 
         return dev_data_var
+
+    def get_batch_dev(self, batch_size, enable_cuda=False):
+        """
+        development data batch
+        :param enable_cuda:
+        :param batch_size:
+        :return:
+        """
+        batch_data = []
+
+        dev_data = self.__data['train']
+        data_size = len(dev_data['context'])
+        i = 0
+        while i < data_size:
+            batch = {}
+            j = min(i + batch_size, data_size)
+            batch['context'] = self.__convert_variable(dev_data['context'][i:j], enable_cuda)
+            batch['question'] = self.__convert_variable(dev_data['question'][i:j], enable_cuda)
+            batch['answer_range'] = self.__convert_variable(dev_data['answer_range'][i:j], enable_cuda)
+
+            batch_data.append(batch)
+            i = j
+
+        return batch_data

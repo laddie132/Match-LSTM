@@ -57,17 +57,6 @@ def main():
         model = model.cuda()
         criterion = criterion.cuda()
 
-    logger.info('loading pre-trained weight...')
-    weight_path = global_config['data']['model_path']
-    if os.path.exists(global_config['data']['checkpoint_path']):
-        with open(global_config['data']['checkpoint_path'], 'r') as checkpoint_f:
-            weight_path = checkpoint_f.read()
-
-    weight = torch.load(weight_path, map_location=lambda storage, loc: storage)
-    if enable_cuda:
-        weight = torch.load(weight_path, map_location=lambda storage, loc: storage.cuda())
-    model.load_state_dict(weight)
-
     # optimizer
     optimizer_choose = global_config['train']['optimizer']
     optimizer_lr = global_config['train']['learning_rate']
@@ -87,12 +76,29 @@ def main():
     elif optimizer_choose != "adamax":
         logger.error('optimizer "%s" in config file not recoginized, use default: adamax' % optimizer_choose)
 
+    logger.info('loading checkpoint...')
+    weight_path = global_config['data']['model_path']
+    if os.path.exists(global_config['data']['checkpoint_path']):
+        with open(global_config['data']['checkpoint_path'], 'r') as checkpoint_f:
+            weight_path = checkpoint_f.read()
+
+    start_epoch = 0
+    if 'epoch' in weight_path:
+        start_epoch = int(weight_path[len(weight_path) - 1]) + 1
+
+    if os.path.exists(weight_path):
+        weight = torch.load(weight_path, map_location=lambda storage, loc: storage)
+        if enable_cuda:
+            weight = torch.load(weight_path, map_location=lambda storage, loc: storage.cuda())
+        model.load_state_dict(weight)
+
     logger.info('start training...')
     batch_size = global_config['train']['batch_size']
     batch_list = dataset.get_batch_train(batch_size, enable_cuda)
 
     # every epoch
-    for epoch in range(global_config['train']['epoch']):
+    for epoch in range(start_epoch, global_config['train']['epoch']):
+        sum_loss = 0.
         # every batch
         for i, batch in enumerate(batch_list):
             optimizer.zero_grad()
@@ -108,9 +114,11 @@ def main():
 
             # logging
             batch_loss = loss.cpu().data.numpy()
+            sum_loss += batch_loss * batch_size
 
             logger.info('epoch=%d, batch=%d, loss=%.5f, lr=%.6f' % (
                 epoch, i, batch_loss, optimizer_lr))
+        logger.info('epoch=%d, sum_loss=%.5f' % (epoch, sum_loss))
 
         # save model weight
         model_weight = model.state_dict()
@@ -118,6 +126,8 @@ def main():
 
         model_weight_path = global_config['data']['model_path'] + '-epoch%d' % epoch
         torch.save(model_weight, model_weight_path)
+
+        logger.info("saving model weight on '%s'" % model_weight_path)
         with open(global_config['data']['checkpoint_path'], 'w') as checkpoint_f:
             checkpoint_f.write(model_weight_path)
     logger.info('finished.')
