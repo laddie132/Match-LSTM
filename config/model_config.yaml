@@ -6,7 +6,8 @@ data:
 
   embedding_path: data/glove.840B.300d.zip
 
-  model_path: data/model-weight.pt
+  model_path: data/model-weight.pt-epoch2
+  checkpoint_path: data/checkpoint
 
 model:
   embedding_size: 300
@@ -16,7 +17,7 @@ model:
 
 train:
   batch_size: 30
-  epoch: 50
+  epoch: 30
   enable_cuda: False
   random_seed: 123
 

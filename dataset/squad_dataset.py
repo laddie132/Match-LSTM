@@ -32,6 +32,7 @@ class SquadDataset:
     def get_batch_train(self, batch_size, enable_cuda=False):
         """
         a train data batch
+        :param enable_cuda:
         :param batch_size:
         :return:
         """
@@ -58,5 +59,18 @@ class SquadDataset:
 
         return torch.autograd.Variable(torch.from_numpy(np_array).type(torch.LongTensor))
 
-    def get_dev_data(self):
-        return self.__data['dev']
+    def get_dev_data(self, enable_cuda=False):
+        """
+        development data set
+        :param enable_cuda:
+        :return:
+        """
+        dev_data = self.__data['dev']
+
+        dev_data_var = {
+            'context': self.__convert_variable(dev_data['context'], enable_cuda),
+            'question': self.__convert_variable(dev_data['question'], enable_cuda),
+            'answer_range': self.__convert_variable(dev_data['answer_range'], enable_cuda)
+        }
+
+        return dev_data_var

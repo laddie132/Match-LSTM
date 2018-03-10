@@ -35,11 +35,9 @@ def main():
 
     # handle dataset
     is_exist_dataset_h5 = os.path.exists(global_config['data']['dataset_h5'])
-    is_exist_embedding_h5 = os.path.exists(global_config['data']['embedding_h5'])
     logger.info('%s dataset hdf5 file' % ("found" if is_exist_dataset_h5 else "not found"))
-    logger.info('%s glove hdf5 file' % ("found" if is_exist_embedding_h5 else "not found"))
 
-    if (not is_exist_dataset_h5) or (not is_exist_embedding_h5):
+    if not is_exist_dataset_h5:
         logger.info('preprocess data...')
         preprocess = PreprocessData(global_config)
         preprocess.run()
@@ -49,16 +47,28 @@ def main():
 
     logger.info('constructing model...')
     model = MatchLSTMModel(global_config)
+    if enable_cuda:
+        model = model.cuda()
 
-    logger.info('start evaluating...')
-    dev_data = dataset.get_dev_data()
+    logger.info('loading model weight...')
+    is_exist_model_weight = os.path.exists(global_config['data']['model_path'])
+    if not is_exist_model_weight:
+        logger.info("not found model weight file on '%s'" % global_config['data']['model_path'])
+        exit(-1)
+    weight = torch.load(global_config['data']['model_path'], map_location=lambda storage, loc: storage)
+    if enable_cuda:
+        weight = torch.load(global_config['data']['model_path'], map_location=lambda storage, loc: storage.cuda())
+    model.load_state_dict(weight)
 
     # forward
+    logger.info('forwarding...')
+    dev_data = dataset.get_dev_data(enable_cuda)
     batch_context, batch_question, batch_answer_range = dev_data['context'], dev_data['question'], dev_data['answer_range']
     pred_answer_prop = model.forward(batch_context, batch_question)
     pred_answer_range = torch.max(pred_answer_prop, 2)[1]
 
     # calculate the mean em and f1 score
+    logger.info('evaluating...')
     num_em = 0
     score_f1 = 0.
     batch_size = pred_answer_range.shape[0]
@@ -70,8 +80,8 @@ def main():
     score_em = num_em * 1. / batch_size
     score_f1 /= batch_size
 
-    logger.info("eval data size: " + batch_size)
-    logger.info("em: " + str(score_em) + " f1:" + str(score_f1))
+    logger.info("eval data size: %d" % batch_size)
+    logger.info("em: %.2f, f1: %.2f" % (score_em, score_f1))
 
 
 def evaluate_em(y_pred, y_true):

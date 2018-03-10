@@ -88,6 +88,7 @@ class UniMatchLSTM(torch.nn.Module):
     Args:
         - input_size: The number of expected features in the input Hp and Hq
         - hidden_size: The number of features in the hidden state Hr
+        - enable_cuda: enable GPU accelerate or not
 
     Inputs:
         Hp(context_len, batch, input_size): context encoded
@@ -134,6 +135,7 @@ class MatchLSTM(torch.nn.Module):
         - input_size: The number of expected features in the input Hp and Hq
         - hidden_size: The number of features in the hidden state Hr
         - bidirectional: If ``True``, becomes a bidirectional RNN. Default: ``False``
+        - enable_cuda: enable GPU accelerate or not
 
     Inputs:
         Hp(context_len, batch, input_size): context encoded
@@ -232,6 +234,7 @@ class BoundaryPointer(torch.nn.Module):
     Args:
         - input_size: The number of features in Hr
         - hidden_size: The number of features in the hidden layer
+        - enable_cuda: enable GPU accelerate or not
 
     Inputs:
         Hr(context_len, batch, hidden_size * num_directions): question-aware context representation
