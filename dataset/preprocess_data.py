@@ -22,6 +22,7 @@ class PreprocessData:
     """
 
     padding = '__padding__'  # id = 0
+    padding_idx = 0
 
     __compress_option = dict(compression="gzip", compression_opts=9, shuffle=False)
 

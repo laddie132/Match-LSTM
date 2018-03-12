@@ -6,7 +6,6 @@ __author__ = 'han'
 import os
 import torch
 import logging
-from dataset.preprocess_data import PreprocessData
 from dataset.squad_dataset import SquadDataset
 from models.match_lstm import MatchLSTMModel
 from utils.load_config import init_logging, read_config
@@ -33,17 +32,8 @@ def main():
         logger.error("CUDA is not abaliable, please unable CUDA in config file")
         exit(-1)
 
-    # handle dataset
-    is_exist_dataset_h5 = os.path.exists(global_config['data']['dataset_h5'])
-    logger.info('%s dataset hdf5 file' % ("found" if is_exist_dataset_h5 else "not found"))
-
-    if not is_exist_dataset_h5:
-        logger.info('preprocess data...')
-        preprocess = PreprocessData(global_config)
-        preprocess.run()
-
     logger.info('reading squad dataset...')
-    dataset = SquadDataset(squad_h5_path=global_config['data']['dataset_h5'])
+    dataset = SquadDataset(global_config)
 
     logger.info('constructing model...')
     model = MatchLSTMModel(global_config)

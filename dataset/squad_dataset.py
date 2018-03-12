@@ -3,21 +3,35 @@
 
 __author__ = 'han'
 
+import os
 import h5py
 import numpy as np
 import torch
+import logging
+from dataset.preprocess_data import PreprocessData
+from utils.utils import *
+
+logger = logging.getLogger(__name__)
 
 
 class SquadDataset:
     """
     dataset module for SQuAD
     """
-    def __init__(self, squad_h5_path='data/squad.h5'):
+    def __init__(self, global_config):
         self.__data = {}
         self.__attr = {}
-        self.load_hdf5(squad_h5_path)
+        self.global_config = global_config
 
-    def load_hdf5(self, squad_h5_path):
+        self.preprocess()       # whether preprocessing squad dataset
+        self.load_hdf5()
+
+    def load_hdf5(self):
+        """
+        load squad hdf5 file
+        :return:
+        """
+        squad_h5_path = self.global_config['data']['dataset_h5']
         with h5py.File(squad_h5_path, 'r') as f:
             f_data = f['data']
 
@@ -44,20 +58,14 @@ class SquadDataset:
         while i < data_size:
             batch = {}
             j = min(i + batch_size, data_size)
-            batch['context'] = self.__convert_variable(train_data['context'][i:j], enable_cuda)
-            batch['question'] = self.__convert_variable(train_data['question'][i:j], enable_cuda)
-            batch['answer_range'] = self.__convert_variable(train_data['answer_range'][i:j], enable_cuda)
+            batch['context'] = convert_long_variable(train_data['context'][i:j], enable_cuda)
+            batch['question'] = convert_long_variable(train_data['question'][i:j], enable_cuda)
+            batch['answer_range'] = convert_long_variable(train_data['answer_range'][i:j], enable_cuda)
 
             batch_data.append(batch)
             i = j
 
         return batch_data
-
-    def __convert_variable(self, np_array, enable_cuda=False):
-        if enable_cuda:
-            return torch.autograd.Variable(torch.from_numpy(np_array).type(torch.LongTensor)).cuda()
-
-        return torch.autograd.Variable(torch.from_numpy(np_array).type(torch.LongTensor))
 
     def get_dev_data(self, enable_cuda=False):
         """
@@ -68,9 +76,9 @@ class SquadDataset:
         dev_data = self.__data['dev']
 
         dev_data_var = {
-            'context': self.__convert_variable(dev_data['context'], enable_cuda),
-            'question': self.__convert_variable(dev_data['question'], enable_cuda),
-            'answer_range': self.__convert_variable(dev_data['answer_range'], enable_cuda)
+            'context': convert_long_variable(dev_data['context'], enable_cuda),
+            'question': convert_long_variable(dev_data['question'], enable_cuda),
+            'answer_range': convert_long_variable(dev_data['answer_range'], enable_cuda)
         }
 
         return dev_data_var
@@ -80,7 +88,7 @@ class SquadDataset:
         development data batch
         :param enable_cuda:
         :param batch_size:
-        :return:
+        :return: [packed squences]
         """
         batch_data = []
 
@@ -90,11 +98,24 @@ class SquadDataset:
         while i < data_size:
             batch = {}
             j = min(i + batch_size, data_size)
-            batch['context'] = self.__convert_variable(dev_data['context'][i:j], enable_cuda)
-            batch['question'] = self.__convert_variable(dev_data['question'][i:j], enable_cuda)
-            batch['answer_range'] = self.__convert_variable(dev_data['answer_range'][i:j], enable_cuda)
+            batch['context'] = convert_long_variable(dev_data['context'][i:j], enable_cuda)
+            batch['question'] = convert_long_variable(dev_data['question'][i:j], enable_cuda)
+            batch['answer_range'] = convert_long_variable(dev_data['answer_range'][i:j], enable_cuda)
 
             batch_data.append(batch)
             i = j
 
         return batch_data
+
+    def preprocess(self):
+        """
+        preprocessing dataset to h5 file
+        :return:
+        """
+        is_exist_dataset_h5 = os.path.exists(self.global_config['data']['dataset_h5'])
+        logger.info('%s dataset hdf5 file' % ("found" if is_exist_dataset_h5 else "not found"))
+
+        if not is_exist_dataset_h5:
+            logger.info('preprocess data...')
+            pdata = PreprocessData(self.global_config)
+            pdata.run()

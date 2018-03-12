@@ -52,7 +52,7 @@ class MatchLSTMModel(torch.nn.Module):
                                            enable_cuda=self.enable_cuda)
 
     def forward(self, context, question):
-        batch_size = context.shape[0]
+        batch_size = context.batch_sizes[0]
         hidden = init_hidden(1, batch_size, self.hidden_size, self.enable_cuda)
 
         context_vec = self.embedding.forward(context).transpose(0, 1)

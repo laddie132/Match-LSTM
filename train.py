@@ -3,12 +3,12 @@
 
 __author__ = 'han'
 
+import re
 import os
 import torch
 import logging
 import torch.nn as nn
 import torch.optim as optim
-from dataset.preprocess_data import PreprocessData
 from dataset.squad_dataset import SquadDataset
 from models.match_lstm import MatchLSTMModel
 from utils.load_config import init_logging, read_config
@@ -38,17 +38,8 @@ def main():
         logger.error("CUDA is not abaliable, please unable CUDA in config file")
         exit(-1)
 
-    # handle dataset
-    is_exist_dataset_h5 = os.path.exists(global_config['data']['dataset_h5'])
-    logger.info('%s dataset hdf5 file' % ("found" if is_exist_dataset_h5 else "not found"))
-
-    if not is_exist_dataset_h5:
-        logger.info('preprocess data...')
-        preprocess = PreprocessData(global_config)
-        preprocess.run()
-
     logger.info('reading squad dataset...')
-    dataset = SquadDataset(squad_h5_path=global_config['data']['dataset_h5'])
+    dataset = SquadDataset(global_config)
 
     logger.info('constructing model...')
     model = MatchLSTMModel(global_config)
@@ -80,11 +71,12 @@ def main():
     weight_path = global_config['data']['model_path']
     if os.path.exists(global_config['data']['checkpoint_path']):
         with open(global_config['data']['checkpoint_path'], 'r') as checkpoint_f:
-            weight_path = checkpoint_f.read()
+            weight_path = checkpoint_f.read().strip()
 
     start_epoch = 0
     if 'epoch' in weight_path:
-        start_epoch = int(weight_path[len(weight_path) - 1]) + 1
+        p = re.compile('.*epoch(\d*)')
+        start_epoch = int(re.findall(p, weight_path)[0]) + 1
 
     if os.path.exists(weight_path):
         weight = torch.load(weight_path, map_location=lambda storage, loc: storage)
@@ -92,7 +84,7 @@ def main():
             weight = torch.load(weight_path, map_location=lambda storage, loc: storage.cuda())
         model.load_state_dict(weight)
 
-    logger.info('start training...')
+    logger.info('start training from epoch %d...' % start_epoch)
     batch_size = global_config['train']['batch_size']
     batch_list = dataset.get_batch_train(batch_size, enable_cuda)
 

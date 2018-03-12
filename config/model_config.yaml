@@ -16,7 +16,7 @@ model:
   encoder_char: False
 
 train:
-  batch_size: 30
+  batch_size: 32
   epoch: 30
   enable_cuda: False
   random_seed: 123
@@ -27,6 +27,6 @@ train:
   learning_rate: 0.002
 
 test:
-  batch_size: 30
+  batch_size: 32
   enable_cuda: False
   random_seed: 123

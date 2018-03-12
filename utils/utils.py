@@ -101,6 +101,48 @@ def pad_sequences(sequences, maxlen=None, dtype='int32', padding='pre', truncati
     return x
 
 
+def packed_array(vin, padding_idx=0, enable_cuda=False):
+    """
+    transform a numpy array with padding to packed squences
+    :param vin: (batch, max_seq_len)
+    :param padding_idx: the existing padding idx in variable 'vin'
+    :param enable_cuda:
+    :return:
+    """
+    def real_len_no_pad(narray):
+        n = 0
+        i = len(narray) - 1
+        while i >= 0:
+            if narray[i] == padding_idx:
+                n += 1
+            else:
+                break
+
+            i -= 1
+        return len(narray) - n
+
+    vin_len = map(lambda v: real_len_no_pad(v), vin)
+    vin_len = np.array(list(vin_len))
+    vin_with_len = np.column_stack((vin, vin_len))
+    vin_with_len_sorted = sorted(vin_with_len, key=lambda v: v[len(v)-1], reverse=True)
+    vin_with_len_sorted = np.array(vin_with_len_sorted)
+
+    ldx = vin.shape[1]
+    vin_sorted = convert_long_variable(vin_with_len_sorted[:, :ldx], enable_cuda)
+    len_sorted = vin_with_len_sorted[:, ldx:].T[0]
+
+    pack = torch.nn.utils.rnn.pack_padded_sequence(vin_sorted, len_sorted, batch_first=True)
+
+    return pack
+
+
+def convert_long_variable(np_array, enable_cuda=False):
+    if enable_cuda:
+        return torch.autograd.Variable(torch.from_numpy(np_array).type(torch.LongTensor)).cuda()
+
+    return torch.autograd.Variable(torch.from_numpy(np_array).type(torch.LongTensor))
+
+
 class MyNLLLoss(torch.nn.modules.loss._Loss):
     """
     a standard negative log likelihood loss. It is useful to train a classification
