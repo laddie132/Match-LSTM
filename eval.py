@@ -74,13 +74,14 @@ def main():
             score_f1 += evaluate_f1(bat_context[i].cpu().data.numpy(),
                                     tmp_ans_range[i].cpu().data.numpy(),
                                     bat_answer_range[i].cpu().data.numpy())
-        logger.info('batch=%d' % bnum)
+        logger.info('batch=%d/%d, cur_score_em=%.2f, cur_score_f1=%.2f' %
+                    (bnum, len(batch_dev_data), num_em * 1. / dev_data_size, score_f1 / dev_data_size))
 
     score_em = num_em * 1. / dev_data_size
     score_f1 /= dev_data_size
 
     logger.info("eval data size: %d" % dev_data_size)
-    logger.info("em: %.2f, f1: %.2f" % (score_em, score_f1))
+    logger.info("ave_score_em: %.2f, ave_score_f1: %.2f" % (score_em, score_f1))
 
 
 def evaluate_em(y_pred, y_true):

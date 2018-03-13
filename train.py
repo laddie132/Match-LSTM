@@ -108,8 +108,8 @@ def main():
             batch_loss = loss.cpu().data.numpy()
             sum_loss += batch_loss * batch_size
 
-            logger.info('epoch=%d, batch=%d, loss=%.5f, lr=%.6f' % (
-                epoch, i, batch_loss, optimizer_lr))
+            logger.info('epoch=%d, batch=%d/%d, loss=%.5f, lr=%.6f' % (
+                epoch, i, len(batch_list), batch_loss, optimizer_lr))
         logger.info('epoch=%d, sum_loss=%.5f' % (epoch, sum_loss))
 
         # save model weight

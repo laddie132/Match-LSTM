@@ -11,7 +11,7 @@ with open('../logs/1-epoch20.log') as f_log:
 
 epoch_loss = []
 
-p = re.compile(r'.*epoch=(\d*), batch=\d*, loss=(\d*\.\d*).*')
+p = re.compile(r'.*epoch=(\d*), batch=\d*.\d*, loss=(\d*\.\d*).*')
 for line in value_log:
     if '[train.py:102-main()] - INFO - epoch' in line:
         tmp_epoch_loss = re.findall(p, line)[0]
