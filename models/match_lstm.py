@@ -77,11 +77,11 @@ class MatchLSTMModel(torch.nn.Module):
         question_encode_pack, _ = self.encoder.forward(question_vec_pack, hidden)
 
         # pad values
-        context_encode, _ = torch.nn.utils.rnn.pad_packed_sequence(context_encode_pack)
-        question_encode, _ = torch.nn.utils.rnn.pad_packed_sequence(question_encode_pack)
+        context_encode, context_length = torch.nn.utils.rnn.pad_packed_sequence(context_encode_pack)
+        question_encode, question_length = torch.nn.utils.rnn.pad_packed_sequence(question_encode_pack)
 
         # match lstm and point
-        qt_aware_ct = self.match_lstm.forward(context_encode, question_encode)  # (context_len, batch, *)
+        qt_aware_ct = self.match_lstm.forward(context_encode, context_length, question_encode, question_length)
         answer_range = self.pointer_net.forward(qt_aware_ct)
 
         return answer_range.transpose(0, 1)

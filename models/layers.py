@@ -42,7 +42,7 @@ class GloveEmbedding(torch.nn.Module):
         return int(word_dict_size), int(embedding_size), torch.from_numpy(id2vec)
 
     def forward(self, x):
-        return self.embedding_layer.forward(x)  # todo: 去掉padding加的冗余后缀
+        return self.embedding_layer.forward(x)
 
 
 class MatchLSTMAttention(torch.nn.Module):
@@ -140,6 +140,8 @@ class MatchLSTM(torch.nn.Module):
     Inputs:
         Hp(context_len, batch, input_size): context encoded
         Hq(question_len, batch, input_size): question encoded
+        Hp_length(batch,): each context valued length without padding values
+        Hq_length(batch,): each question valued length without padding values
 
     Outputs:
         Hr(context_len, batch, hidden_size * num_directions): question-aware context representation
@@ -155,21 +157,35 @@ class MatchLSTM(torch.nn.Module):
         if bidirectional:
             self.right_match_lstm = UniMatchLSTM(input_size, hidden_size, enable_cuda)
 
-    def flip(self, tensor, dim=0):
-        idx = [i for i in range(tensor.size(dim) - 1, -1, -1)]
-        idx = torch.autograd.Variable(torch.LongTensor(idx))
-        if self.enable_cuda:
-            idx = idx.cuda()
+    def flip(self, vin, length):
+        """
+        flip a tensor
+        :param vin: input batch with padding values
+        :param length: each sample length without padding values
+        :return:
+        """
+        flip_list = []
+        for i in range(vin.shape[1]):
+            cur_tensor = vin[:, i, :]
+            cur_length = length[i]
 
-        inverted_tensor = tensor.index_select(dim, idx)
-        return inverted_tensor
+            idx = list(range(cur_length - 1, -1, -1)) + list(range(cur_length, cur_tensor.shape[0]))
+            idx = torch.autograd.Variable(torch.LongTensor(idx))
+            if self.enable_cuda:
+                idx = idx.cuda()
 
-    def forward(self, Hp, Hq):
+            cur_inv_tensor = cur_tensor.index_select(0, idx)
+            flip_list.append(cur_inv_tensor)
+        inv_tensor = torch.stack(flip_list, dim=1)
+
+        return inv_tensor
+
+    def forward(self, Hp, Hp_length, Hq, Hq_length):
         left_hidden = self.left_match_lstm.forward(Hp, Hq)
         rtn_hidden = left_hidden
 
         if self.bidirectional:
-            Hp_inv = self.flip(Hp, dim=0)
+            Hp_inv = self.flip(Hp, Hp_length)
             right_hidden = self.right_match_lstm.forward(Hp_inv, Hq)
             rtn_hidden = torch.cat((left_hidden, right_hidden), dim=2)
 
