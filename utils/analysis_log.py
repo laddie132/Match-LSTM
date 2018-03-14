@@ -4,17 +4,16 @@ import matplotlib.pyplot as plt
 import re
 import numpy as np
 
-value_log = []
-with open('../logs/1-epoch20.log') as f_log:
-    log_lines = f_log.readlines()
-    value_log = log_lines[3220:]
 
-epoch_loss = []
+def analysis_log_loss(log_txt):
+    epoch_loss = []
+    p = re.compile(r'.*epoch=(\d*), batch=\d*.\d*, loss=(\d*\.\d*).*')
+    for line in log_txt:
+        result = re.findall(p, line)
+        if len(result) == 0:
+            continue
 
-p = re.compile(r'.*epoch=(\d*), batch=\d*.\d*, loss=(\d*\.\d*).*')
-for line in value_log:
-    if '[train.py:102-main()] - INFO - epoch' in line:
-        tmp_epoch_loss = re.findall(p, line)[0]
+        tmp_epoch_loss = result[0]
         epoch = int(tmp_epoch_loss[0])
         loss = float(tmp_epoch_loss[1])
 
@@ -22,8 +21,33 @@ for line in value_log:
             epoch_loss.append(0.)
         else:
             epoch_loss[epoch] += loss
-epoch_loss = epoch_loss[:len(epoch_loss)-1]
+    return epoch_loss
 
+
+def analysis_log_sum_loss(log_txt):
+    epoch_loss = []
+    p = re.compile(r'.*epoch=\d*, sum_loss=(\d*\.\d*).*')
+    for line in log_txt:
+        result = re.findall(p, line)
+        if len(result) == 0:
+            continue
+        sum_loss = float(result[0])
+        epoch_loss.append(sum_loss)
+
+    return epoch_loss
+
+
+value_log = []
+with open('../logs/2-debug.log') as f_log:
+    log_lines = f_log.readlines()
+    # value_log = log_lines[3220:]
+    value_log = log_lines
+
+epoch_loss = analysis_log_sum_loss(value_log)
+for i, sum_loss in enumerate(epoch_loss):
+    print('epoch=%d, sum_loss=%f' % (i, sum_loss))
+
+# plot
 x = range(len(epoch_loss))
 y = epoch_loss
 

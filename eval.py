@@ -48,7 +48,7 @@ def main():
     weight = torch.load(global_config['data']['model_path'], map_location=lambda storage, loc: storage)
     if enable_cuda:
         weight = torch.load(global_config['data']['model_path'], map_location=lambda storage, loc: storage.cuda())
-    model.load_state_dict(weight)
+    model.load_state_dict(weight, strict=False)
 
     # forward
     logger.info('forwarding...')
@@ -123,12 +123,14 @@ def evaluate_f1(context_tokens, y_pred, y_true):
             continue
 
         true_tokens = set(context_tokens[tmp_true[0]:tmp_true[1]])
-        same_tokens = pred_tokens.union(true_tokens)
+        same_tokens = pred_tokens.intersection(true_tokens)
 
         precision = len(same_tokens) * 1. / len(pred_tokens)
         recall = len(same_tokens) * 1. / len(true_tokens)
 
-        f1 = 2 * precision * recall / (precision + recall)
+        f1 = 0
+        if precision + recall > 0:
+            f1 = 2 * precision * recall / (precision + recall)
         all_f1.append(f1)
 
     return max(all_f1)

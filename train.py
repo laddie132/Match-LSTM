@@ -13,7 +13,6 @@ from dataset.squad_dataset import SquadDataset
 from models.match_lstm import MatchLSTMModel
 from utils.load_config import init_logging, read_config
 from utils.utils import MyNLLLoss
-import eval
 
 
 init_logging()
@@ -82,7 +81,7 @@ def main():
         weight = torch.load(weight_path, map_location=lambda storage, loc: storage)
         if enable_cuda:
             weight = torch.load(weight_path, map_location=lambda storage, loc: storage.cuda())
-        model.load_state_dict(weight)
+        model.load_state_dict(weight, strict=False)
 
     logger.info('start training from epoch %d...' % start_epoch)
     batch_size = global_config['train']['batch_size']
@@ -123,9 +122,6 @@ def main():
         with open(global_config['data']['checkpoint_path'], 'w') as checkpoint_f:
             checkpoint_f.write(model_weight_path)
     logger.info('finished.')
-
-    # evaluate on the dev data
-    eval.main()
 
 
 if __name__ == '__main__':
