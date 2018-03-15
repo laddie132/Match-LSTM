@@ -166,8 +166,8 @@ class MyNLLLoss(torch.nn.modules.loss._Loss):
         y_pred_log = torch.log(y_pred)
         loss = []
         for i in range(y_pred.shape[0]):
-            tmp_loss = F.nll_loss(y_pred_log[i], y_true[i], reduce=False)
-            one_loss = F.mul(tmp_loss[0], tmp_loss[1])
+            tmp_loss = F.nll_loss(y_pred_log[i], y_true[i], reduce=False)   # todo: speed up
+            one_loss = tmp_loss[0] + tmp_loss[1]
             loss.append(one_loss)
 
         loss_stack = torch.stack(loss)
