@@ -88,6 +88,7 @@ def main():
     batch_list = dataset.get_batch_train(batch_size, enable_cuda)
 
     # every epoch
+    last_loss = 0.
     for epoch in range(start_epoch, global_config['train']['epoch']):
         sum_loss = 0.
         # every batch
@@ -110,6 +111,14 @@ def main():
             logger.info('epoch=%d, batch=%d/%d, loss=%.5f, lr=%.6f' % (
                 epoch, i, len(batch_list), batch_loss, optimizer_lr))
         logger.info('epoch=%d, sum_loss=%.5f' % (epoch, sum_loss))
+
+        # adjust learning rate when loss up
+        if last_loss != 0. and sum_loss > last_loss:
+            optimizer_lr = global_config['train']['learning_rate_decay_ratio'] * optimizer_lr
+            for param_grp in optimizer.param_groups:
+                param_grp['lr'] = optimizer_lr
+        last_loss = sum_loss
+        logging.info('learning rate down to %f' % optimizer_lr)
 
         # save model weight
         model_weight = model.state_dict()
