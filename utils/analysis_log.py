@@ -53,8 +53,8 @@ y = epoch_loss
 
 plt.plot(x, y, marker='o')
 
-my_x_ticks = np.arange(0, len(epoch_loss), 2)
-plt.xticks(my_x_ticks)
+# my_x_ticks = np.arange(0, len(epoch_loss), 2)
+# plt.xticks(my_x_ticks)
 
 plt.grid()
 plt.show()
