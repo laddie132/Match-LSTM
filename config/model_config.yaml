@@ -12,7 +12,7 @@ data:
 model:
   embedding_size: 300
   hidden_size: 150  # one-direction
-  encoder_bidirection: False
+  encoder_bidirection: True
   encoder_char: False
 
 train:

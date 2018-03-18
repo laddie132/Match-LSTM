@@ -52,9 +52,11 @@ class MatchLSTMModel(torch.nn.Module):
                                            hidden_size=hidden_size,
                                            enable_cuda=self.enable_cuda)
 
+        # pointer net init hidden generate
+        self.ptr_net_hidden_linear = nn.Linear(hidden_size * 2, hidden_size)
+
     def forward(self, context, question):
         batch_size = context.shape[0]
-        hidden = init_hidden(1, batch_size, self.hidden_size, self.enable_cuda)
 
         # get sorted length
         c_vin, c_vin_length = sort_length(context.data.cpu().numpy(),
@@ -73,15 +75,23 @@ class MatchLSTMModel(torch.nn.Module):
         question_vec_pack = torch.nn.utils.rnn.pack_padded_sequence(question_vec, q_vin_length)
 
         # encode
-        context_encode_pack, _ = self.encoder.forward(context_vec_pack, hidden)
-        question_encode_pack, _ = self.encoder.forward(question_vec_pack, hidden)
+        if self.encoder.bidirectional:
+            encode_hidden = init_hidden(2, batch_size, self.hidden_size, self.enable_cuda)
+        else:
+            encode_hidden = init_hidden(1, batch_size, self.hidden_size, self.enable_cuda)
+        context_encode_pack, _ = self.encoder.forward(context_vec_pack, encode_hidden)
+        question_encode_pack, _ = self.encoder.forward(question_vec_pack, encode_hidden)
 
         # pad values
         context_encode, context_length = torch.nn.utils.rnn.pad_packed_sequence(context_encode_pack)
         question_encode, question_length = torch.nn.utils.rnn.pad_packed_sequence(question_encode_pack)
 
-        # match lstm and point
+        # match lstm
         qt_aware_ct = self.match_lstm.forward(context_encode, context_length, question_encode, question_length)
-        answer_range = self.pointer_net.forward(qt_aware_ct)
+
+        # pointer net
+        qt_aware_last_hidden = qt_aware_ct[-1, :]
+        ptr_net_hidden = self.ptr_net_hidden_linear.forward(qt_aware_last_hidden)
+        answer_range = self.pointer_net.forward(qt_aware_ct, ptr_net_hidden)
 
         return answer_range.transpose(0, 1)

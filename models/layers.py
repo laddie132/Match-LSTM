@@ -269,9 +269,8 @@ class BoundaryPointer(torch.nn.Module):
         self.attention = PointerAttention(input_size, hidden_size)
         self.lstm = torch.nn.LSTMCell(input_size, hidden_size)
 
-    def forward(self, Hr):
-        batch_size = Hr.shape[1]
-        hidden = init_hidden_cell(batch_size, self.hidden_size, self.enable_cuda)
+    def forward(self, Hr, h_0):
+        hidden = (h_0, h_0)
         beta_out = []
 
         for t in range(self.answer_len):
