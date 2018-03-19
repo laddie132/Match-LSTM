@@ -172,3 +172,22 @@ class MyNLLLoss(torch.nn.modules.loss._Loss):
 
         loss_stack = torch.stack(loss)
         return torch.mean(loss_stack)
+
+
+def count_parameters(model):
+    """
+    get parameters count that require grad
+    :param model:
+    :return:
+    """
+    parameters_num = 0
+    for par in model.parameters():
+        if not par.requires_grad:
+            continue
+
+        tmp_par_shape = par.size()
+        tmp_par_size = 1
+        for ele in tmp_par_shape:
+            tmp_par_size *= ele
+        parameters_num += tmp_par_size
+    return parameters_num

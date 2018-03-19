@@ -77,7 +77,7 @@ class MatchLSTMAttention(torch.nn.Module):
         wg_g = self.linear_wg(G)\
             .squeeze(2)\
             .transpose(0, 1)                            # (batch, question_len)
-        alpha = F.softmax(wg_g, dim=0)                  # (batch, question_len) todo: log_softmax
+        alpha = F.softmax(wg_g, dim=1)                  # (batch, question_len)
 
         return alpha
 
@@ -221,7 +221,7 @@ class PointerAttention(torch.nn.Module):
         beta_tmp = self.linear_wf(f)\
             .squeeze(2)\
             .transpose(0, 1)                                # (batch, context_len)
-        beta = F.softmax(beta_tmp, dim=0)                   # todo: log_softmax
+        beta = F.softmax(beta_tmp, dim=1)
 
         return beta
 
