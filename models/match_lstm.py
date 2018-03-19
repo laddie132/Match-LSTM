@@ -30,30 +30,41 @@ class MatchLSTMModel(torch.nn.Module):
 
     def __init__(self, global_config):
         super(MatchLSTMModel, self).__init__()
-        embedding_size = global_config['model']['embedding_size']
-        hidden_size = global_config['model']['hidden_size']
-        encoder_bidirection = global_config['model']['encoder_bidirection']
 
+        # set config
+        embedding_size = global_config['model']['embedding_size']
+        self.hidden_size = global_config['model']['hidden_size']
         self.enable_cuda = global_config['train']['enable_cuda']
 
-        self.hidden_size = hidden_size
+        encoder_bidirection = global_config['model']['encoder_bidirection']
+        self.encoder_direction_num = 1
+        if encoder_bidirection:
+            self.encoder_direction_num = 2
+
+        match_lstm_bidirection = global_config['model']['match_lstm_bidirection']
+        self.match_lstm_direction_num = 1
+        if match_lstm_bidirection:
+            self.match_lstm_direction_num = 2
+
+        # construct model
         self.embedding = GloveEmbedding(dataset_h5_path=global_config['data']['dataset_h5'])
         self.encoder = nn.LSTM(input_size=embedding_size,
-                               hidden_size=hidden_size,
+                               hidden_size=self.hidden_size,
                                bidirectional=encoder_bidirection)
-        encode_out_size = hidden_size
-        if encoder_bidirection:
-            encode_out_size *= 2
+        encode_out_size = self.hidden_size * self.encoder_direction_num
+
         self.match_lstm = MatchLSTM(input_size=encode_out_size,
-                                    hidden_size=hidden_size,
-                                    bidirectional=True,
+                                    hidden_size=self.hidden_size,
+                                    bidirectional=match_lstm_bidirection,
                                     enable_cuda=self.enable_cuda)
-        self.pointer_net = BoundaryPointer(input_size=hidden_size * 2,
-                                           hidden_size=hidden_size,
+        match_lstm_out_size = self.hidden_size * self.match_lstm_direction_num
+
+        self.pointer_net = BoundaryPointer(input_size=match_lstm_out_size,
+                                           hidden_size=self.hidden_size,
                                            enable_cuda=self.enable_cuda)
 
         # pointer net init hidden generate
-        self.ptr_net_hidden_linear = nn.Linear(hidden_size * 2, hidden_size)
+        self.ptr_net_hidden_linear = nn.Linear(match_lstm_out_size, self.hidden_size)
 
     def forward(self, context, question):
         batch_size = context.shape[0]
@@ -75,10 +86,7 @@ class MatchLSTMModel(torch.nn.Module):
         question_vec_pack = torch.nn.utils.rnn.pack_padded_sequence(question_vec, q_vin_length)
 
         # encode
-        if self.encoder.bidirectional:
-            encode_hidden = init_hidden(2, batch_size, self.hidden_size, self.enable_cuda)
-        else:
-            encode_hidden = init_hidden(1, batch_size, self.hidden_size, self.enable_cuda)
+        encode_hidden = init_hidden(self.encoder_direction_num, batch_size, self.hidden_size, self.enable_cuda)
         context_encode_pack, _ = self.encoder.forward(context_vec_pack, encode_hidden)
         question_encode_pack, _ = self.encoder.forward(question_vec_pack, encode_hidden)
 

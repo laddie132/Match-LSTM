@@ -109,3 +109,4 @@ squad.h5
 glove.840B.300d.h5
 model-weight.pt*
 oov_word.txt
+data

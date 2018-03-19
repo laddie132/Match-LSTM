@@ -2,7 +2,6 @@
 
 import matplotlib.pyplot as plt
 import re
-import numpy as np
 
 
 def analysis_log_loss(log_txt):
@@ -37,10 +36,8 @@ def analysis_log_sum_loss(log_txt):
     return epoch_loss
 
 
-value_log = []
 with open('../logs/2-debug.log') as f_log:
     log_lines = f_log.readlines()
-    # value_log = log_lines[3220:]
     value_log = log_lines
 
 epoch_loss = analysis_log_sum_loss(value_log)

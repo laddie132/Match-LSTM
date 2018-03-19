@@ -117,8 +117,8 @@ def main():
             optimizer_lr = global_config['train']['learning_rate_decay_ratio'] * optimizer_lr
             for param_grp in optimizer.param_groups:
                 param_grp['lr'] = optimizer_lr
+            logging.info('learning rate down to %f' % optimizer_lr)
         last_loss = sum_loss
-        logging.info('learning rate down to %f' % optimizer_lr)
 
         # save model weight
         model_weight = model.state_dict()
