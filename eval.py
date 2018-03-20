@@ -43,6 +43,8 @@ def main():
     model_path = global_config['test']['model_path']
     start_epoch = global_config['test']['start_epoch']
     end_epoch = global_config['test']['end_epoch']
+    batch_size = global_config['test']['batch_size']
+    batch_cnt = dataset.get_dev_batch_cnt(batch_size)
 
     for epoch in range(start_epoch, end_epoch):
 
@@ -61,17 +63,14 @@ def main():
 
         # forward
         logger.info('forwarding...')
-        batch_size = global_config['test']['batch_size']
         batch_dev_data = dataset.get_batch_dev(batch_size, enable_cuda)
-        batch_dev_data = [batch_dev_data[0]]
-
-        score_em, score_f1 = eval_on_model(model, batch_dev_data)
+        score_em, score_f1 = eval_on_model(model, batch_dev_data, batch_cnt)
         logger.info("epoch=%d, ave_score_em=%.2f, ave_score_f1=%.2f" % (epoch, score_em, score_f1))
 
     logging.info('finished.')
 
 
-def eval_on_model(model, batch_data):
+def eval_on_model(model, batch_data, batch_cnt):
     """
     evaluate on a specific trained model
     :param model: model with weight loaded
@@ -97,7 +96,7 @@ def eval_on_model(model, batch_data):
                                     tmp_ans_range[i].cpu().data.numpy(),
                                     bat_answer_range[i].cpu().data.numpy())
         logger.info('batch=%d/%d, cur_score_em=%.2f, cur_score_f1=%.2f' %
-                    (bnum, len(batch_data), num_em * 1. / dev_data_size, score_f1 / dev_data_size))
+                    (bnum, batch_cnt, num_em * 1. / dev_data_size, score_f1 / dev_data_size))
 
     score_em = num_em * 1. / dev_data_size
     score_f1 /= dev_data_size

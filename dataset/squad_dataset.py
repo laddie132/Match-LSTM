@@ -5,8 +5,7 @@ __author__ = 'han'
 
 import os
 import h5py
-import numpy as np
-import torch
+import math
 import logging
 from dataset.preprocess_data import PreprocessData
 from utils.utils import *
@@ -50,8 +49,6 @@ class SquadDataset:
         :param batch_size:
         :return:
         """
-        batch_data = []
-
         train_data = self.__data['train']
         data_size = len(train_data['context'])
         i = 0
@@ -62,10 +59,8 @@ class SquadDataset:
             batch['question'] = convert_long_variable(train_data['question'][i:j], enable_cuda)
             batch['answer_range'] = convert_long_variable(train_data['answer_range'][i:j], enable_cuda)
 
-            batch_data.append(batch)
             i = j
-
-        return batch_data
+            yield batch
 
     def get_dev_data(self, enable_cuda=False):
         """
@@ -88,10 +83,8 @@ class SquadDataset:
         development data batch
         :param enable_cuda:
         :param batch_size:
-        :return: [packed squences]
+        :return: generator [packed squences]
         """
-        batch_data = []
-
         dev_data = self.__data['dev']
         data_size = len(dev_data['context'])
         i = 0
@@ -102,10 +95,30 @@ class SquadDataset:
             batch['question'] = convert_long_variable(dev_data['question'][i:j], enable_cuda)
             batch['answer_range'] = convert_long_variable(dev_data['answer_range'][i:j], enable_cuda)
 
-            batch_data.append(batch)
             i = j
+            yield batch
 
-        return batch_data
+    def get_train_batch_cnt(self, batch_size):
+        """
+        get count of train batches
+        :param batch_size: single batch size
+        :return: count
+        """
+        data_size = self.__attr['train_size']
+        cnt_batch = math.ceil(data_size * 1.0 / batch_size)
+
+        return cnt_batch
+
+    def get_dev_batch_cnt(self, batch_size):
+        """
+        get count of dev batches
+        :param batch_size: single batch size
+        :return: count
+        """
+        data_size = self.__attr['dev_size']
+        cnt_batch = math.ceil(data_size * 1.0 / batch_size)
+
+        return cnt_batch
 
     def preprocess(self):
         """

@@ -85,14 +85,15 @@ def main():
 
     logger.info('start training from epoch %d...' % start_epoch)
     batch_size = global_config['train']['batch_size']
-    batch_list = dataset.get_batch_train(batch_size, enable_cuda)
+    batch_cnt = dataset.get_train_batch_cnt(batch_size)
 
     # every epoch
     last_loss = 0.
     for epoch in range(start_epoch, global_config['train']['epoch']):
         sum_loss = 0.
         # every batch
-        for i, batch in enumerate(batch_list):
+        batch_gen = dataset.get_batch_train(batch_size, enable_cuda)
+        for i, batch in enumerate(batch_gen):
             optimizer.zero_grad()
 
             # forward
@@ -109,7 +110,7 @@ def main():
             sum_loss += batch_loss * batch_size
 
             logger.info('epoch=%d, batch=%d/%d, loss=%.5f, lr=%.6f' % (
-                epoch, i, len(batch_list), batch_loss, optimizer_lr))
+                epoch, i, batch_cnt, batch_loss, optimizer_lr))
         logger.info('epoch=%d, sum_loss=%.5f' % (epoch, sum_loss))
 
         # adjust learning rate when loss up
