@@ -33,3 +33,7 @@ test:
   batch_size: 32
   enable_cuda: False
   random_seed: 123
+
+  model_path: data/3-model/
+  start_epoch: 0
+  end_epoch: 20 # [start_epoch, end_epoch)
