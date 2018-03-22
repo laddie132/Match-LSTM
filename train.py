@@ -88,7 +88,6 @@ def main():
     batch_cnt = dataset.get_train_batch_cnt(batch_size)
 
     # every epoch
-    last_loss = 0.
     for epoch in range(start_epoch, global_config['train']['epoch']):
         sum_loss = 0.
         # every batch
@@ -109,17 +108,8 @@ def main():
             batch_loss = loss.cpu().data.numpy()
             sum_loss += batch_loss * batch_size
 
-            logger.info('epoch=%d, batch=%d/%d, loss=%.5f, lr=%.6f' % (
-                epoch, i, batch_cnt, batch_loss, optimizer_lr))
+            logger.info('epoch=%d, batch=%d/%d, loss=%.5f' % (epoch, i, batch_cnt, batch_loss))
         logger.info('epoch=%d, sum_loss=%.5f' % (epoch, sum_loss))
-
-        # adjust learning rate when loss up
-        if last_loss != 0. and sum_loss > last_loss:
-            optimizer_lr = global_config['train']['learning_rate_decay_ratio'] * optimizer_lr
-            for param_grp in optimizer.param_groups:
-                param_grp['lr'] = optimizer_lr
-            logging.info('learning rate down to %f' % optimizer_lr)
-        last_loss = sum_loss
 
         # save model weight
         model_weight = model.state_dict()
