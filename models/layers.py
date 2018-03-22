@@ -3,13 +3,10 @@
 
 __author__ = 'han'
 
-import time
 import h5py
 import torch
-from torch.autograd import Variable
 import torch.nn.functional as F
 import numpy as np
-from utils.utils import init_hidden_cell
 
 
 class GloveEmbedding(torch.nn.Module):
@@ -88,7 +85,6 @@ class UniMatchLSTM(torch.nn.Module):
     Args:
         - input_size: The number of expected features in the input Hp and Hq
         - hidden_size: The number of features in the hidden state Hr
-        - enable_cuda: enable GPU accelerate or not
 
     Inputs:
         Hp(context_len, batch, input_size): context encoded
@@ -98,11 +94,10 @@ class UniMatchLSTM(torch.nn.Module):
         Hr(context_len, batch, hidden_size): question-aware context representation
     """
 
-    def __init__(self, input_size, hidden_size, enable_cuda):
+    def __init__(self, input_size, hidden_size):
         super(UniMatchLSTM,self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
-        self.enable_cuda = enable_cuda
 
         self.attention = MatchLSTMAttention(input_size, hidden_size)
         self.lstm = torch.nn.LSTMCell(input_size=2*input_size, hidden_size=hidden_size)
@@ -110,7 +105,10 @@ class UniMatchLSTM(torch.nn.Module):
     def forward(self, Hp, Hq):
         batch_size = Hp.shape[1]
         context_len = Hp.shape[0]
-        hidden = [init_hidden_cell(batch_size, self.hidden_size, self.enable_cuda)]
+
+        # init hidden with the same type of input data
+        h_0 = torch.autograd.Variable(Hq.data.new(batch_size, self.hidden_size).zero_())
+        hidden = [(h_0, h_0)]
 
         for t in range(context_len):
             cur_hp = Hp[t, ...].squeeze(0)                              # (batch, input_size)
@@ -152,10 +150,10 @@ class MatchLSTM(torch.nn.Module):
         self.num_directions = 1 if bidirectional else 2
         self.enable_cuda = enable_cuda
 
-        self.left_match_lstm = UniMatchLSTM(input_size, hidden_size, enable_cuda)
+        self.left_match_lstm = UniMatchLSTM(input_size, hidden_size)
 
         if bidirectional:
-            self.right_match_lstm = UniMatchLSTM(input_size, hidden_size, enable_cuda)
+            self.right_match_lstm = UniMatchLSTM(input_size, hidden_size)
 
     def flip(self, vin, length):
         """
@@ -250,26 +248,28 @@ class BoundaryPointer(torch.nn.Module):
     Args:
         - input_size: The number of features in Hr
         - hidden_size: The number of features in the hidden layer
-        - enable_cuda: enable GPU accelerate or not
 
     Inputs:
         Hr(context_len, batch, hidden_size * num_directions): question-aware context representation
+        h_0(batch, hidden_size): init lstm cell hidden state
     Outputs:
         **output** start and end answer index possibility position in context, fixed length
     """
     answer_len = 2
 
-    def __init__(self, input_size, hidden_size, enable_cuda):
+    def __init__(self, input_size, hidden_size):
         super(BoundaryPointer, self).__init__()
 
         self.input_size = input_size
         self.hidden_size = hidden_size
-        self.enable_cuda = enable_cuda
 
         self.attention = PointerAttention(input_size, hidden_size)
         self.lstm = torch.nn.LSTMCell(input_size, hidden_size)
 
-    def forward(self, Hr, h_0):
+    def forward(self, Hr, h_0=None):
+        if h_0 is None:
+            batch_size = Hr.shape[1]
+            h_0 = torch.autograd.Variable(Hr.data.new(batch_size, self.hidden_size).zero_())
         hidden = (h_0, h_0)
         beta_out = []
 

@@ -11,6 +11,7 @@ import numpy as np
 
 def init_hidden(num_layers_directions, batch, hidden_size, enable_cuda):
     """
+    - notice: replaced by function `tensor.new.zero_()`
     lstm init hidden out, state
     :param num_layers_directions: num_layers \* num_directions
     :param batch: 
@@ -27,6 +28,7 @@ def init_hidden(num_layers_directions, batch, hidden_size, enable_cuda):
 
 def init_hidden_cell(batch, hidden_size, enable_cuda):
     """
+    - notice: replaced by function `tensor.new.zero_()`
     lstm init hidden out, state
     :param batch:
     :param hidden_size:
