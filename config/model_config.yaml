@@ -10,18 +10,19 @@ data:
   checkpoint_path: data/checkpoint
 
 model:
+  random_seed: 123
+  dropout_p: 0.4
+
   embedding_size: 300
   hidden_size: 150  # one-direction
   encoder_bidirection: True
   encoder_char: False
-
   match_lstm_bidirection: True
 
 train:
   batch_size: 64
   epoch: 50
   enable_cuda: False
-  random_seed: 123
 
   optimizer: 'adamax'  # adam, sgd, adamax, (default is adamax)
   adamax_beta1: 0.9
@@ -31,7 +32,6 @@ train:
 test:
   batch_size: 32
   enable_cuda: False
-  random_seed: 123
 
   model_path: data/3-model/
   start_epoch: 0

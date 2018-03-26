@@ -25,11 +25,9 @@ def main():
     global_config = read_config()
 
     # set random seed
-    seed = global_config['train']['random_seed']
+    seed = global_config['model']['random_seed']
     enable_cuda = global_config['train']['enable_cuda']
     torch.manual_seed(seed)
-    if enable_cuda:
-        torch.cuda.manual_seed(seed)
 
     if torch.cuda.is_available() and not enable_cuda:
         logger.warning("CUDA is avaliable, you can enable CUDA in config file")
@@ -45,7 +43,7 @@ def main():
     criterion = MyNLLLoss()
     if enable_cuda:
         model = model.cuda()
-        criterion = criterion.cuda()
+    model.train()       # set training = True, make sure right dropout
 
     # optimizer
     optimizer_choose = global_config['train']['optimizer']
@@ -100,7 +98,7 @@ def main():
             pred_answer_range = model.forward(bat_context, bat_question)
 
             # get loss
-            loss = criterion(pred_answer_range, bat_answer_range)
+            loss = criterion.forward(pred_answer_range, bat_answer_range)
             loss.backward()
             optimizer.step()    # update parameters
 

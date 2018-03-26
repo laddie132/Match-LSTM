@@ -43,7 +43,8 @@ class MatchLSTMModel(torch.nn.Module):
         match_lstm_direction_num = 2 if match_lstm_bidirection else 1
 
         # construct model
-        self.embedding = GloveEmbedding(dataset_h5_path=global_config['data']['dataset_h5'])
+        self.embedding = GloveEmbedding(dataset_h5_path=global_config['data']['dataset_h5'],
+                                        dropout_p=global_config['model']['dropout_p'])
         self.encoder = nn.LSTM(input_size=embedding_size,
                                hidden_size=hidden_size,
                                bidirectional=encoder_bidirection)
@@ -92,6 +93,7 @@ class MatchLSTMModel(torch.nn.Module):
         # pointer net
         qt_aware_last_hidden = qt_aware_ct[-1, :]
         ptr_net_hidden = self.ptr_net_hidden_linear.forward(qt_aware_last_hidden)
+        ptr_net_hidden = torch.tanh(ptr_net_hidden)
         answer_range = self.pointer_net.forward(qt_aware_ct, ptr_net_hidden)
 
         return answer_range.transpose(0, 1)

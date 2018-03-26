@@ -14,13 +14,14 @@ class GloveEmbedding(torch.nn.Module):
     Glove Embedding Layer
     Args:
         - glove_h5_path: glove embedding file path
+        - dropout_p: dropout probability
     Inputs:
         **input** sequence with word index
     Outputs
         **output** tensor that change word index to word embeddings
     """
 
-    def __init__(self, dataset_h5_path):
+    def __init__(self, dataset_h5_path, dropout_p=0.):
         super(GloveEmbedding, self).__init__()
         self.dataset_h5_path = dataset_h5_path
         self.n_embeddings, self.len_embedding, self.weights = self.load_glove_hdf5()
@@ -28,6 +29,8 @@ class GloveEmbedding(torch.nn.Module):
         self.embedding_layer = torch.nn.Embedding(num_embeddings=self.n_embeddings, embedding_dim=self.len_embedding)
         self.embedding_layer.weight = torch.nn.Parameter(self.weights)
         self.embedding_layer.weight.requires_grad = False
+
+        self.dropout = torch.nn.Dropout(p=dropout_p)
 
     def load_glove_hdf5(self):
         with h5py.File(self.dataset_h5_path, 'r') as f:
@@ -39,7 +42,8 @@ class GloveEmbedding(torch.nn.Module):
         return int(word_dict_size), int(embedding_size), torch.from_numpy(id2vec)
 
     def forward(self, x):
-        return self.embedding_layer.forward(x)
+        tmp_emb = self.embedding_layer.forward(x)
+        return self.dropout(tmp_emb)
 
 
 class MatchLSTMAttention(torch.nn.Module):

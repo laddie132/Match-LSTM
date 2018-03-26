@@ -20,11 +20,9 @@ def main():
     global_config = read_config()
 
     # set random seed
-    seed = global_config['test']['random_seed']
+    seed = global_config['model']['random_seed']
     enable_cuda = global_config['test']['enable_cuda']
     torch.manual_seed(seed)
-    if enable_cuda:
-        torch.cuda.manual_seed(seed)
 
     if torch.cuda.is_available() and not enable_cuda:
         logger.warning("CUDA is avaliable, you can enable CUDA in config file")
@@ -39,6 +37,7 @@ def main():
     model = MatchLSTMModel(global_config)
     if enable_cuda:
         model = model.cuda()
+    model.eval()        # let training = False, make sure right dropout
 
     model_path = global_config['test']['model_path']
     start_epoch = global_config['test']['start_epoch']
