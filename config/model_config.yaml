@@ -23,7 +23,7 @@ train:
   batch_size: 64
   valid_batch_size: 64
 
-  epoch: 50
+  epoch: 30
   enable_cuda: False
 
   optimizer: 'adamax'  # adam, sgd, adamax, (default is adamax)

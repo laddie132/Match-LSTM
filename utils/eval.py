@@ -30,7 +30,7 @@ def eval_on_model(model, criterion, batch_data, batch_cnt, epoch):
         dev_data_size += tmp_size
 
         # get loss
-        batch_loss = criterion.forward(tmp_ans_prop, bat_answer_range)
+        batch_loss = criterion.forward(tmp_ans_prop, bat_answer_range[:, 0:2])
         sum_loss += batch_loss.cpu().data.numpy() * tmp_size
 
         # calculate the mean em and f1 score
