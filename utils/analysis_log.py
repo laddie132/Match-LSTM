@@ -42,7 +42,8 @@ def analysis_log_score(log_txt):
     epoch = []
     score_em = []
     score_f1 = []
-    p = re.compile(r'.*epoch=(\d*), ave_score_em=(\d*\.\d*), ave_score_f1=(\d*\.\d*)$')
+    loss = []
+    p = re.compile(r'.*epoch=(\d*), ave_score_em=(\d*\.\d*), ave_score_f1=(\d*\.\d*), sum_loss=(\d*\.\d*)$')
     for line in log_txt:
         result = re.findall(p, line)
         if len(result) == 0:
@@ -51,12 +52,13 @@ def analysis_log_score(log_txt):
         epoch.append(int(result[0][0]))
         score_em.append(float(result[0][1]))
         score_f1.append(float(result[0][2]))
+        loss.append(float(result[0][3]))
 
-    return epoch, score_em, score_f1
+    return epoch, score_em, score_f1, loss
 
 
 def main_loss():
-    with open('../logs/3-debug.log') as f_log:
+    with open('../logs/6-debug.log') as f_log:
         log_lines = f_log.readlines()
         value_log = log_lines
 
@@ -84,7 +86,7 @@ def main_score():
         log_lines = f_log.readlines()
         value_log = log_lines
 
-    epoch, score_em, score_f1 = analysis_log_score(value_log)
+    epoch, score_em, score_f1, loss = analysis_log_score(value_log)
     for i, em, f1 in zip(epoch, score_em, score_f1):
         print('epoch=%d, score_em=%f, score_f1=%f' % (i, em, f1))
 
@@ -92,13 +94,15 @@ def main_score():
     x = epoch
     y1 = score_em
     y2 = score_f1
+    y3 = loss
 
     plt.plot(x, y1, marker='o', color='b')
     plt.plot(x, y2, marker='^', color='r')
+    plt.plot(x, y3, marker='*', color='g')
 
     plt.xlabel('epoch')
     plt.ylabel('score')
-    plt.legend(labels=['em', 'f1'])
+    plt.legend(labels=['em', 'f1', 'loss'])
     plt.grid()
     plt.show()
 

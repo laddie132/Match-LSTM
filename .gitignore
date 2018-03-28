@@ -100,8 +100,7 @@ ENV/
 # mypy
 .mypy_cache/
 examples.py
-examples2.py
-test.*
+test_example.py
 
 logs/
 data/glove.840B.300d.zip

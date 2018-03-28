@@ -3,16 +3,15 @@
 
 __author__ = 'han'
 
-import re
 import os
 import torch
 import logging
-import torch.nn as nn
 import torch.optim as optim
 from dataset.squad_dataset import SquadDataset
 from models.match_lstm import MatchLSTMModel
 from utils.load_config import init_logging, read_config
 from utils.utils import MyNLLLoss
+from utils.eval import eval_on_model
 
 
 init_logging()
@@ -43,7 +42,6 @@ def main():
     criterion = MyNLLLoss()
     if enable_cuda:
         model = model.cuda()
-    model.train()       # set training = True, make sure right dropout
 
     # optimizer
     optimizer_choose = global_config['train']['optimizer']
@@ -64,62 +62,109 @@ def main():
     elif optimizer_choose != "adamax":
         logger.error('optimizer "%s" in config file not recoginized, use default: adamax' % optimizer_choose)
 
-    logger.info('loading checkpoint...')
+    # check if exist model weight
     weight_path = global_config['data']['model_path']
-    if os.path.exists(global_config['data']['checkpoint_path']):
-        with open(global_config['data']['checkpoint_path'], 'r') as checkpoint_f:
-            weight_path = checkpoint_f.read().strip()
-
-    start_epoch = 0
-    if 'epoch' in weight_path:
-        p = re.compile('.*epoch(\d*)')
-        start_epoch = int(re.findall(p, weight_path)[0]) + 1
-
     if os.path.exists(weight_path):
+        logger.info('loading existing weight...')
         weight = torch.load(weight_path, map_location=lambda storage, loc: storage)
         if enable_cuda:
             weight = torch.load(weight_path, map_location=lambda storage, loc: storage.cuda())
         model.load_state_dict(weight, strict=False)
 
-    logger.info('start training from epoch %d...' % start_epoch)
-    batch_size = global_config['train']['batch_size']
-    batch_cnt = dataset.get_train_batch_cnt(batch_size)
+    # training arguments
+    logger.info('start training...')
+    train_batch_size = global_config['train']['batch_size']
+    valid_batch_size = global_config['train']['valid_batch_size']
 
+    train_batch_cnt = dataset.get_train_batch_cnt(train_batch_size)
+    valid_batch_cnt = dataset.get_dev_batch_cnt(valid_batch_size)
+
+    best_valid_f1 = None
     # every epoch
-    for epoch in range(start_epoch, global_config['train']['epoch']):
-        sum_loss = 0.
-        # every batch
-        batch_gen = dataset.get_batch_train(batch_size, enable_cuda)
-        for i, batch in enumerate(batch_gen):
-            optimizer.zero_grad()
-
-            # forward
-            bat_context, bat_question, bat_answer_range = batch['context'], batch['question'], batch['answer_range']
-            pred_answer_range = model.forward(bat_context, bat_question)
-
-            # get loss
-            loss = criterion.forward(pred_answer_range, bat_answer_range)
-            loss.backward()
-            optimizer.step()    # update parameters
-
-            # logging
-            batch_loss = loss.cpu().data.numpy()
-            sum_loss += batch_loss * batch_size
-
-            logger.info('epoch=%d, batch=%d/%d, loss=%.5f' % (epoch, i, batch_cnt, batch_loss))
+    for epoch in range(global_config['train']['epoch']):
+        # train
+        model.train()  # set training = True, make sure right dropout
+        batch_train_gen = dataset.get_batch_train(train_batch_size, enable_cuda)
+        sum_loss = train_on_model(model=model,
+                                  criterion=criterion,
+                                  optimizer=optimizer,
+                                  batch_data=batch_train_gen,
+                                  batch_cnt=train_batch_cnt,
+                                  epoch=epoch)
         logger.info('epoch=%d, sum_loss=%.5f' % (epoch, sum_loss))
 
-        # save model weight
-        model_weight = model.state_dict()
-        del model_weight['embedding.embedding_layer.weight']
+        # evaluate
+        model.eval()  # let training = False, make sure right dropout
+        batch_dev_gen = dataset.get_batch_dev(valid_batch_size, enable_cuda)
+        valid_score_em, valid_score_f1, valid_loss = eval_on_model(model=model,
+                                                                   criterion=criterion,
+                                                                   batch_data=batch_dev_gen,
+                                                                   batch_cnt=valid_batch_cnt,
+                                                                   epoch=epoch)
+        logger.info("epoch=%d, ave_score_em=%.2f, ave_score_f1=%.2f, sum_loss=%.5f" %
+                    (epoch, valid_score_em, valid_score_f1, valid_loss))
 
-        model_weight_path = global_config['data']['model_path'] + '-epoch%d' % epoch
-        torch.save(model_weight, model_weight_path)
+        # save model when best f1 score
+        if best_valid_f1 is None or valid_score_f1 > best_valid_f1:
+            save_model(model,
+                       epoch=epoch,
+                       model_weight_path=global_config['data']['model_path'],
+                       checkpoint_path=global_config['data']['checkpoint_path'])
+            logger.info("saving model weight on epoch=%d" % epoch)
 
-        logger.info("saving model weight on '%s'" % model_weight_path)
-        with open(global_config['data']['checkpoint_path'], 'w') as checkpoint_f:
-            checkpoint_f.write(model_weight_path)
     logger.info('finished.')
+
+
+def train_on_model(model, criterion, optimizer, batch_data, batch_cnt, epoch):
+    """
+    train on every batch
+    :param model:
+    :param criterion:
+    :param batch_data:
+    :param optimizer:
+    :param train_batch_cnt:
+    :param epoch:
+    :return:
+    """
+    sum_loss = 0.
+    for i, batch in enumerate(batch_data):
+        optimizer.zero_grad()
+
+        # forward
+        bat_context, bat_question, bat_answer_range = batch['context'], batch['question'], batch['answer_range']
+        pred_answer_range = model.forward(bat_context, bat_question)
+
+        # get loss
+        loss = criterion.forward(pred_answer_range, bat_answer_range)
+        loss.backward()
+        optimizer.step()  # update parameters
+
+        # logging
+        batch_loss = loss.cpu().data.numpy()
+        sum_loss += batch_loss * bat_answer_range.shape[0]
+
+        logger.info('epoch=%d, batch=%d/%d, loss=%.5f' % (epoch, i, batch_cnt, batch_loss))
+
+    return sum_loss
+
+
+def save_model(model, epoch, model_weight_path, checkpoint_path):
+    """
+
+    :param model:
+    :param epoch:
+    :param model_weight_path:
+    :param checkpoint_path:
+    :return:
+    """
+    # save model weight
+    model_weight = model.state_dict()
+    del model_weight['embedding.embedding_layer.weight']
+
+    torch.save(model_weight, model_weight_path)
+
+    with open(checkpoint_path, 'w') as checkpoint_f:
+        checkpoint_f.write('epoch=%d' % epoch)
 
 
 if __name__ == '__main__':

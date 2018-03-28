@@ -21,6 +21,8 @@ model:
 
 train:
   batch_size: 64
+  valid_batch_size: 64
+
   epoch: 50
   enable_cuda: False
 
@@ -32,7 +34,3 @@ train:
 test:
   batch_size: 32
   enable_cuda: False
-
-  model_path: data/3-model/
-  start_epoch: 0
-  end_epoch: 20 # [start_epoch, end_epoch)
