@@ -11,7 +11,7 @@ import torch.functional as F
 from torch.autograd import Variable
 from utils.utils import *
 from dataset.preprocess_data import PreprocessData
-from models.layers import GloveEmbedding, MatchLSTM, BoundaryPointer
+from models.layers import *
 
 
 class MatchLSTMModel(torch.nn.Module):
@@ -42,12 +42,16 @@ class MatchLSTMModel(torch.nn.Module):
         match_lstm_bidirection = global_config['model']['match_lstm_bidirection']
         match_lstm_direction_num = 2 if match_lstm_bidirection else 1
 
+        dropout_p = global_config['model']['dropout_p']
+        self.dropout = torch.nn.Dropout(p=dropout_p)
+
         # construct model
         self.embedding = GloveEmbedding(dataset_h5_path=global_config['data']['dataset_h5'],
-                                        dropout_p=global_config['model']['dropout_p'])
-        self.encoder = nn.LSTM(input_size=embedding_size,
-                               hidden_size=hidden_size,
-                               bidirectional=encoder_bidirection)
+                                        dropout_p=0.)
+        self.encoder = MyLSTM(input_size=embedding_size,
+                              hidden_size=hidden_size,
+                              bidirectional=encoder_bidirection,
+                              dropout_p=dropout_p)
         encode_out_size = hidden_size * encoder_direction_num
 
         self.match_lstm = MatchLSTM(input_size=encode_out_size,
@@ -75,17 +79,9 @@ class MatchLSTMModel(torch.nn.Module):
         context_vec = self.embedding.forward(context).transpose(0, 1)
         question_vec = self.embedding.forward(question).transpose(0, 1)
 
-        # packed padding values
-        context_vec_pack = torch.nn.utils.rnn.pack_padded_sequence(context_vec, c_vin_length)
-        question_vec_pack = torch.nn.utils.rnn.pack_padded_sequence(question_vec, q_vin_length)
-
         # encode
-        context_encode_pack, _ = self.encoder.forward(context_vec_pack)
-        question_encode_pack, _ = self.encoder.forward(question_vec_pack)
-
-        # pad values
-        context_encode, context_length = torch.nn.utils.rnn.pad_packed_sequence(context_encode_pack)
-        question_encode, question_length = torch.nn.utils.rnn.pad_packed_sequence(question_encode_pack)
+        context_encode, context_length = self.encoder.forward(context_vec, c_vin_length)
+        question_encode, question_length = self.encoder.forward(question_vec, q_vin_length)
 
         # match lstm
         qt_aware_ct = self.match_lstm.forward(context_encode, context_length, question_encode, question_length)

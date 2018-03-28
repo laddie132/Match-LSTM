@@ -289,3 +289,26 @@ class BoundaryPointer(torch.nn.Module):
 
         result = torch.stack(beta_out, dim=0)
         return result
+
+
+class MyLSTM(torch.nn.Module):
+    """
+    LSTM with packed sequence and dropout
+    """
+    def __init__(self, input_size, hidden_size, bidirectional, dropout_p):
+        super(MyLSTM, self).__init__()
+
+        self.lstm = torch.nn.LSTM(input_size=input_size,
+                                  hidden_size=hidden_size,
+                                  bidirectional=bidirectional)
+        self.dropout = torch.nn.Dropout(p=dropout_p)
+
+    def forward(self, v, v_len):
+        v_pack = torch.nn.utils.rnn.pack_padded_sequence(v, v_len)
+        v_dropout = self.dropout.forward(v_pack.data)
+        v_pack_dropout = torch.nn.utils.rnn.PackedSequence(v_dropout, v_pack.batch_sizes)
+
+        o_pack_dropout, _ = self.lstm.forward(v_pack_dropout)
+        o, o_len = torch.nn.utils.rnn.pad_packed_sequence(o_pack_dropout)
+
+        return o, o_len
