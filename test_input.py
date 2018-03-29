@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 def main():
-    logger.info('------------Match-LSTM Evaluate--------------')
+    logger.info('------------Match-LSTM TEST INPUT--------------')
     logger.info('loading config file...')
     global_config = read_config()
 
@@ -74,7 +74,7 @@ def main():
     out_answer_id = context_id[start:end]
     out_answer = dataset.sentence_id2word(out_answer_id)
 
-    logging.info('Predict Answer:', out_answer)
+    logging.info('Predict Answer: ' + ' '.join(out_answer))
 
 
 if __name__ == '__main__':

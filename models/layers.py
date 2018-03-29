@@ -7,18 +7,21 @@ import h5py
 import torch
 import torch.nn.functional as F
 import numpy as np
+from dataset.preprocess_data import PreprocessData
+from utils.utils import masked_softmax, generate_mask, compute_mask
 
 
 class GloveEmbedding(torch.nn.Module):
     """
-    Glove Embedding Layer
+    Glove Embedding Layer, also compute the mask of padding index
     Args:
         - glove_h5_path: glove embedding file path
         - dropout_p: dropout probability
     Inputs:
-        **input** sequence with word index
+        **input** (batch, seq_len): sequence with word index
     Outputs
-        **output** tensor that change word index to word embeddings
+        **output** (batch, seq_len, embedding_size): tensor that change word index to word embeddings
+        **mask** (batch, seq_len): tensor that show which index is padding
     """
 
     def __init__(self, dataset_h5_path, dropout_p=0.):
@@ -35,15 +38,19 @@ class GloveEmbedding(torch.nn.Module):
     def load_glove_hdf5(self):
         with h5py.File(self.dataset_h5_path, 'r') as f:
             f_meta_data = f['meta_data']
-            id2vec = np.array(f_meta_data['id2vec'])            # only need 1.11s
+            id2vec = np.array(f_meta_data['id2vec'])  # only need 1.11s
             word_dict_size = f.attrs['word_dict_size']
             embedding_size = f.attrs['embedding_size']
 
         return int(word_dict_size), int(embedding_size), torch.from_numpy(id2vec)
 
     def forward(self, x):
+        mask = compute_mask(x, PreprocessData.padding_idx)
+
         tmp_emb = self.embedding_layer.forward(x)
-        return self.dropout(tmp_emb)
+        out_emb = self.dropout(tmp_emb)
+
+        return out_emb, mask
 
 
 class MatchLSTMAttention(torch.nn.Module):
@@ -70,16 +77,15 @@ class MatchLSTMAttention(torch.nn.Module):
         self.linear_wr = torch.nn.Linear(hidden_size, hidden_size)
         self.linear_wg = torch.nn.Linear(hidden_size, 1)
 
-    def forward(self, Hpi, Hq, Hr_last):
-        wq_hq = self.linear_wq(Hq)                      # (question_len, batch, hidden_size)
-        wp_hp = self.linear_wp(Hpi).unsqueeze(0)        # (1, batch, hidden_size)
-        wr_hr = self.linear_wr(Hr_last).unsqueeze(0)    # (1, batch, hidden_size)
-        G = F.tanh(wq_hq + wp_hp + wr_hr)               # (question_len, batch, hidden_size)
-        wg_g = self.linear_wg(G)\
-            .squeeze(2)\
-            .transpose(0, 1)                            # (batch, question_len)
-        alpha = F.softmax(wg_g, dim=1)                  # (batch, question_len)
-
+    def forward(self, Hpi, Hq, Hr_last, Hq_mask):
+        wq_hq = self.linear_wq(Hq)  # (question_len, batch, hidden_size)
+        wp_hp = self.linear_wp(Hpi).unsqueeze(0)  # (1, batch, hidden_size)
+        wr_hr = self.linear_wr(Hr_last).unsqueeze(0)  # (1, batch, hidden_size)
+        G = F.tanh(wq_hq + wp_hp + wr_hr)  # (question_len, batch, hidden_size), auto broadcast
+        wg_g = self.linear_wg(G) \
+            .squeeze(2) \
+            .transpose(0, 1)  # (batch, question_len)
+        alpha = masked_softmax(wg_g, m=Hq_mask, dim=1)  # (batch, question_len)
         return alpha
 
 
@@ -99,14 +105,14 @@ class UniMatchLSTM(torch.nn.Module):
     """
 
     def __init__(self, input_size, hidden_size):
-        super(UniMatchLSTM,self).__init__()
+        super(UniMatchLSTM, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
 
         self.attention = MatchLSTMAttention(input_size, hidden_size)
-        self.lstm = torch.nn.LSTMCell(input_size=2*input_size, hidden_size=hidden_size)
+        self.lstm = torch.nn.LSTMCell(input_size=2 * input_size, hidden_size=hidden_size)
 
-    def forward(self, Hp, Hq):
+    def forward(self, Hp, Hq, Hq_mask):
         batch_size = Hp.shape[1]
         context_len = Hp.shape[0]
 
@@ -115,17 +121,17 @@ class UniMatchLSTM(torch.nn.Module):
         hidden = [(h_0, h_0)]
 
         for t in range(context_len):
-            cur_hp = Hp[t, ...]                                         # (batch, input_size)
-            alpha = self.attention.forward(cur_hp, Hq, hidden[t][0])    # (batch, question_len)
-            question_alpha = torch.bmm(alpha.unsqueeze(1), Hq.transpose(0, 1))\
-                .squeeze(1)                                             # (batch, input_size)
-            cur_z = torch.cat([cur_hp, question_alpha], dim=1)          # (batch, 2*input_size)
+            cur_hp = Hp[t, ...]  # (batch, input_size)
+            alpha = self.attention.forward(cur_hp, Hq, hidden[t][0], Hq_mask)  # (batch, question_len)
+            question_alpha = torch.bmm(alpha.unsqueeze(1), Hq.transpose(0, 1)) \
+                .squeeze(1)  # (batch, input_size)
+            cur_z = torch.cat([cur_hp, question_alpha], dim=1)  # (batch, 2*input_size)
 
-            cur_hidden = self.lstm.forward(cur_z, hidden[t])            # (batch, hidden_size), (batch, hidden_size)
+            cur_hidden = self.lstm.forward(cur_z, hidden[t])  # (batch, hidden_size), (batch, hidden_size)
             hidden.append(cur_hidden)
 
         hidden_state = map(lambda x: x[0], hidden)
-        result = torch.stack(list(hidden_state)[1:], dim=0)              # (context_len, batch, hidden_size)
+        result = torch.stack(list(hidden_state)[1:], dim=0)  # (context_len, batch, hidden_size)
         return result
 
 
@@ -147,6 +153,7 @@ class MatchLSTM(torch.nn.Module):
     Outputs:
         Hr(context_len, batch, hidden_size * num_directions): question-aware context representation
     """
+
     def __init__(self, input_size, hidden_size, bidirectional, enable_cuda):
         super(MatchLSTM, self).__init__()
         self.bidirectional = bidirectional
@@ -158,13 +165,15 @@ class MatchLSTM(torch.nn.Module):
         if bidirectional:
             self.right_match_lstm = UniMatchLSTM(input_size, hidden_size)
 
-    def flip(self, vin, length):
+    def flip(self, vin, mask):
         """
         flip a tensor
         :param vin: input batch with padding values
-        :param length: each sample length without padding values
+        :param mask: show whether padding index
         :return:
         """
+        length = mask.data.eq(1).long().sum(1).squeeze()        # todo: speed up, vectoration
+
         flip_list = []
         for i in range(vin.shape[1]):
             cur_tensor = vin[:, i, :]
@@ -181,16 +190,19 @@ class MatchLSTM(torch.nn.Module):
 
         return inv_tensor
 
-    def forward(self, Hp, Hp_length, Hq, Hq_length):
-        left_hidden = self.left_match_lstm.forward(Hp, Hq)
+    def forward(self, Hp, Hp_mask, Hq, Hq_mask):
+        left_hidden = self.left_match_lstm.forward(Hp, Hq, Hq_mask)
         rtn_hidden = left_hidden
 
         if self.bidirectional:
-            Hp_inv = self.flip(Hp, Hp_length)
-            right_hidden = self.right_match_lstm.forward(Hp_inv, Hq)
+            Hp_inv = self.flip(Hp, Hp_mask)
+            right_hidden = self.right_match_lstm.forward(Hp_inv, Hq, Hq_mask)
             rtn_hidden = torch.cat((left_hidden, right_hidden), dim=2)
 
-        return rtn_hidden
+        real_rtn_hidden = Hp_mask.transpose(0, 1).unsqueeze(2) * rtn_hidden
+        last_hidden = rtn_hidden[-1, :]
+
+        return real_rtn_hidden, last_hidden
 
 
 class PointerAttention(torch.nn.Module):
@@ -207,6 +219,7 @@ class PointerAttention(torch.nn.Module):
     Outputs:
         beta(batch, context_len): question-aware context representation
     """
+
     def __init__(self, input_size, hidden_size):
         super(PointerAttention, self).__init__()
 
@@ -214,15 +227,16 @@ class PointerAttention(torch.nn.Module):
         self.linear_wa = torch.nn.Linear(hidden_size, hidden_size)
         self.linear_wf = torch.nn.Linear(hidden_size, 1)
 
-    def forward(self, Hr, Hk_pre):
-        wr_hr = self.linear_wr(Hr)                          # (context_len, batch, hidden_size)
-        wa_ha = self.linear_wa(Hk_pre).unsqueeze(0)         # (1, batch, hidden_size)
-        f = F.tanh(wr_hr + wa_ha)                           # (context_len, batch, hidden_size)
+    def forward(self, Hr, Hk_pre, Hr_mask):
+        wr_hr = self.linear_wr(Hr)  # (context_len, batch, hidden_size)
+        wa_ha = self.linear_wa(Hk_pre).unsqueeze(0)  # (1, batch, hidden_size)
+        f = F.tanh(wr_hr + wa_ha)  # (context_len, batch, hidden_size)
 
-        beta_tmp = self.linear_wf(f)\
-            .squeeze(2)\
-            .transpose(0, 1)                                # (batch, context_len)
-        beta = F.softmax(beta_tmp, dim=1)
+        beta_tmp = self.linear_wf(f) \
+            .squeeze(2) \
+            .transpose(0, 1)  # (batch, context_len)
+
+        beta = masked_softmax(beta_tmp, m=Hr_mask, dim=1)
 
         return beta
 
@@ -271,7 +285,7 @@ class BoundaryPointer(torch.nn.Module):
 
         self.dropout = torch.nn.Dropout(p=dropout_p)
 
-    def forward(self, Hr, h_0=None):
+    def forward(self, Hr, Hr_mask, h_0=None):
         Hr = self.dropout.forward(Hr)
 
         if h_0 is None:
@@ -281,13 +295,13 @@ class BoundaryPointer(torch.nn.Module):
         beta_out = []
 
         for t in range(self.answer_len):
-            beta = self.attention.forward(Hr, hidden[0])          # (batch, context_len)
+            beta = self.attention.forward(Hr, hidden[0], Hr_mask)  # (batch, context_len)
             beta_out.append(beta)
 
             context_beta = torch.bmm(beta.unsqueeze(1), Hr.transpose(0, 1)) \
-                .squeeze(1)                                         # (batch, input_size)
+                .squeeze(1)  # (batch, input_size)
 
-            hidden = self.lstm.forward(context_beta, hidden)        # (batch, hidden_size), (batch, hidden_size)
+            hidden = self.lstm.forward(context_beta, hidden)  # (batch, hidden_size), (batch, hidden_size)
 
         result = torch.stack(beta_out, dim=0)
         return result
@@ -296,7 +310,25 @@ class BoundaryPointer(torch.nn.Module):
 class MyLSTM(torch.nn.Module):
     """
     LSTM with packed sequence and dropout
+    Args:
+        input_size: The number of expected features in the input x
+        hidden_size: The number of features in the hidden state h
+        bidirectional: If ``True``, becomes a bidirectional RNN. Default: ``False``
+        dropout_p: dropout probability to input data
+
+    Inputs: input, mask
+        - **input** (batch, seq_len, input_size): tensor containing the features
+          of the input sequence.
+        - **mask** (batch, seq_len): tensor show whether a padding index for each element in the batch.
+
+    Outputs: output, output_mask
+        - **output** (seq_len, batch, hidden_size * num_directions): tensor
+          containing the output features `(h_t)` from the last layer of the RNN,
+          for each t.
+        - **output_length** (batch, seq_len): list of each sample true length
+
     """
+
     def __init__(self, input_size, hidden_size, bidirectional, dropout_p):
         super(MyLSTM, self).__init__()
 
@@ -305,12 +337,33 @@ class MyLSTM(torch.nn.Module):
                                   bidirectional=bidirectional)
         self.dropout = torch.nn.Dropout(p=dropout_p)
 
-    def forward(self, v, v_len):
-        v_pack = torch.nn.utils.rnn.pack_padded_sequence(v, v_len)
+    def forward(self, v, mask):
+        # get sorted v
+        lengths = mask.data.eq(1).long().sum(1).squeeze()
+        _, idx_sort = torch.sort(lengths, dim=0, descending=True)
+        _, idx_unsort = torch.sort(idx_sort, dim=0)
+
+        lengths_sort = list(lengths[idx_sort])
+        idx_sort = torch.autograd.Variable(idx_sort)
+        idx_unsort = torch.autograd.Variable(idx_unsort)
+
+        if v.is_cuda:
+            idx_sort = idx_sort.cuda()
+            idx_unsort = idx_unsort.cuda()
+
+        v_sort = v.index_select(0, idx_sort)
+        v_sort = v_sort.transpose(0, 1)
+
+        v_pack = torch.nn.utils.rnn.pack_padded_sequence(v_sort, lengths_sort)
         v_dropout = self.dropout.forward(v_pack.data)
         v_pack_dropout = torch.nn.utils.rnn.PackedSequence(v_dropout, v_pack.batch_sizes)
 
         o_pack_dropout, _ = self.lstm.forward(v_pack_dropout)
-        o, o_len = torch.nn.utils.rnn.pad_packed_sequence(o_pack_dropout)
+        o, _ = torch.nn.utils.rnn.pad_packed_sequence(o_pack_dropout)
 
-        return o, o_len
+        # unsorted o
+        o_unsort = o.index_select(1, idx_unsort)        # notice here first dim is seq_len
+        new_mask = generate_mask(lengths_sort, enable_cuda=v.is_cuda)
+        new_mask_unsort = new_mask.index_select(0, idx_unsort)
+
+        return o_unsort, new_mask_unsort

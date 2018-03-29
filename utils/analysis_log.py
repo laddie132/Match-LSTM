@@ -72,9 +72,6 @@ def main_loss():
 
     plt.plot(x, y, marker='o')
 
-    # my_x_ticks = np.arange(0, len(epoch_loss), 2)
-    # plt.xticks(my_x_ticks)
-
     plt.xlabel('epoch')
     plt.ylabel('sum_loss')
     plt.grid()
@@ -82,13 +79,13 @@ def main_loss():
 
 
 def main_score():
-    with open('../logs/debug.log') as f_log:
+    with open('../logs/6-debug.log') as f_log:
         log_lines = f_log.readlines()
         value_log = log_lines
 
     epoch, score_em, score_f1, loss = analysis_log_score(value_log)
-    for i, em, f1 in zip(epoch, score_em, score_f1):
-        print('epoch=%d, score_em=%f, score_f1=%f' % (i, em, f1))
+    for i, em, f1, ls in zip(epoch, score_em, score_f1, loss):
+        print('epoch=%d, score_em=%.2f, score_f1=%.2f, sum_loss=%.5f' % (i, em, f1, ls))
 
     # plot
     x = epoch
@@ -96,17 +93,25 @@ def main_score():
     y2 = score_f1
     y3 = loss
 
+    plt.figure(1)
     plt.plot(x, y1, marker='o', color='b')
     plt.plot(x, y2, marker='^', color='r')
-    plt.plot(x, y3, marker='*', color='g')
 
     plt.xlabel('epoch')
     plt.ylabel('score')
-    plt.legend(labels=['em', 'f1', 'loss'])
+    plt.legend(labels=['em', 'f1'])
+    plt.grid()
+
+    plt.figure(2)
+    plt.plot(x, y3, marker='^', color='g')
+
+    plt.xlabel('epoch')
+    plt.ylabel('sum_loss')
+
     plt.grid()
     plt.show()
 
 
 if __name__ == '__main__':
-    # main_loss()
+    main_loss()
     main_score()

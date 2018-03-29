@@ -103,39 +103,6 @@ def pad_sequences(sequences, maxlen=None, dtype='int32', padding='pre', truncati
     return x
 
 
-def sort_length(vin, padding_idx=0, enable_cuda=False):
-    """
-    sort a numpy array with padding and output each length
-    :param vin: (batch, max_seq_len)
-    :param padding_idx: the existing padding idx in variable 'vin'
-    :param enable_cuda:
-    :return:
-    """
-    def real_len_no_pad(narray):
-        n = 0
-        i = len(narray) - 1
-        while i >= 0:
-            if narray[i] == padding_idx:
-                n += 1
-            else:
-                break
-
-            i -= 1
-        return len(narray) - n
-
-    vin_len = map(lambda v: real_len_no_pad(v), vin)
-    vin_len = np.array(list(vin_len))
-    vin_with_len = np.column_stack((vin, vin_len))
-    vin_with_len_sorted = sorted(vin_with_len, key=lambda v: v[len(v)-1], reverse=True)
-    vin_with_len_sorted = np.array(vin_with_len_sorted)
-
-    ldx = vin.shape[1]
-    vin_sorted = to_long_variable(vin_with_len_sorted[:, :ldx], enable_cuda)
-    len_sorted = vin_with_len_sorted[:, ldx:].T[0]
-
-    return vin_sorted, len_sorted
-
-
 def to_long_variable(np_array, enable_cuda=False):
     """
     convert a numpy array to Torch Variable with LongTensor
@@ -178,7 +145,7 @@ class MyNLLLoss(torch.nn.modules.loss._Loss):
 
     Shape:
         - y_pred: (batch, answer_len, prob)
-        - y_true: (batch, answer_len)
+        - y_true: (batch, answer_len)       # todo: end postion should also include
         - output: loss
     """
     def __init__(self):
@@ -187,10 +154,15 @@ class MyNLLLoss(torch.nn.modules.loss._Loss):
     def forward(self, y_pred, y_true):
         torch.nn.modules.loss._assert_no_grad(y_true)
 
+        a = Variable(torch.LongTensor([[0, 1]]))
+        if y_true.is_cuda:
+            a = a.cuda()
+        y_true = y_true - a                     # temp
+
         y_pred_log = torch.log(y_pred)
         loss = []
         for i in range(y_pred.shape[0]):
-            tmp_loss = F.nll_loss(y_pred_log[i], y_true[i], reduce=False)   # todo: speed up
+            tmp_loss = F.nll_loss(y_pred_log[i], y_true[i], reduce=False)
             one_loss = tmp_loss[0] + tmp_loss[1]
             loss.append(one_loss)
 
@@ -215,3 +187,35 @@ def count_parameters(model):
             tmp_par_size *= ele
         parameters_num += tmp_par_size
     return parameters_num
+
+
+def compute_mask(v, padding_idx=0):
+    mask = torch.ne(v, padding_idx).float()
+    return mask
+
+
+def generate_mask(batch_length, enable_cuda=False):
+    sum_one = np.sum(np.array(batch_length))
+
+    one = Variable(torch.ones(int(sum_one)))
+    if enable_cuda:
+        one = one.cuda()
+
+    mask_packed = torch.nn.utils.rnn.PackedSequence(one, batch_length)
+    mask, _ = torch.nn.utils.rnn.pad_packed_sequence(mask_packed)
+
+    return mask
+
+
+def masked_softmax(x, m=None, dim=-1):
+    '''
+    Softmax with mask (optional)
+    '''
+    if m is not None:
+        m = m.float()
+        x = x * m
+    e_x = torch.exp(x - torch.max(x, dim=dim, keepdim=True)[0])
+    if m is not None:
+        e_x = e_x * m
+    softmax = e_x / (torch.sum(e_x, dim=dim, keepdim=True) + 1e-6)
+    return softmax
