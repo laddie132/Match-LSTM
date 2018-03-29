@@ -58,15 +58,15 @@ def main():
     logger.info('forwarding...')
 
     batch_size = global_config['test']['batch_size']
-    batch_dev_cnt = dataset.get_dev_batch_cnt(batch_size)  # todo: change on test data
-    batch_dev_data = dataset.get_batch_dev(batch_size, enable_cuda)
+    batch_dev_data = dataset.get_dataloader_dev(batch_size)
 
     criterion = MyNLLLoss()
     score_em, score_f1 = eval_on_model(model=model,
                                        criterion=criterion,
                                        batch_data=batch_dev_data,
-                                       batch_cnt=batch_dev_cnt,
-                                       epoch=None)
+                                       epoch=None,
+                                       enable_cuda=enable_cuda,
+                                       func=dataset.sentence_id2word)
     logger.info("test: ave_score_em=%.2f, ave_score_f1=%.2f" % (score_em, score_f1))
     logging.info('finished.')
 

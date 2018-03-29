@@ -5,24 +5,29 @@ __author__ = 'han'
 
 import torch
 import logging
+from utils.utils import to_variable
 
 logger = logging.getLogger(__name__)
 
 
-def eval_on_model(model, criterion, batch_data, batch_cnt, epoch):
+def eval_on_model(model, criterion, batch_data, epoch, enable_cuda, func=None):
     """
     evaluate on a specific trained model
     :param model: model with weight loaded
     :param batch_data: test data with batches
     :return: (em, f1, sum_loss)
     """
+    batch_cnt = len(batch_data)
     dev_data_size = 0
     num_em = 0
     score_f1 = 0.
     sum_loss = 0.
 
     for bnum, batch in enumerate(batch_data):
-        bat_context, bat_question, bat_answer_range = batch['context'], batch['question'], batch['answer_range']
+        bat_context, bat_question, bat_answer_range = list(map(lambda x: to_variable(x, enable_cuda), list(batch)))
+
+        # print(func(bat_context[0].data.numpy()))
+
         tmp_ans_prop = model.forward(bat_context, bat_question)
         tmp_ans_range = torch.max(tmp_ans_prop, 2)[1]
 

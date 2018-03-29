@@ -61,7 +61,8 @@ class MatchLSTMModel(torch.nn.Module):
         match_lstm_out_size = hidden_size * match_lstm_direction_num
 
         self.pointer_net = BoundaryPointer(input_size=match_lstm_out_size,
-                                           hidden_size=hidden_size)
+                                           hidden_size=hidden_size,
+                                           dropout_p=dropout_p)
 
         # pointer net init hidden generate
         self.ptr_net_hidden_linear = nn.Linear(match_lstm_out_size, hidden_size)

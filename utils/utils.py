@@ -130,13 +130,13 @@ def sort_length(vin, padding_idx=0, enable_cuda=False):
     vin_with_len_sorted = np.array(vin_with_len_sorted)
 
     ldx = vin.shape[1]
-    vin_sorted = convert_long_variable(vin_with_len_sorted[:, :ldx], enable_cuda)
+    vin_sorted = to_long_variable(vin_with_len_sorted[:, :ldx], enable_cuda)
     len_sorted = vin_with_len_sorted[:, ldx:].T[0]
 
     return vin_sorted, len_sorted
 
 
-def convert_long_variable(np_array, enable_cuda=False):
+def to_long_variable(np_array, enable_cuda=False):
     """
     convert a numpy array to Torch Variable with LongTensor
     :param np_array:
@@ -147,6 +147,28 @@ def convert_long_variable(np_array, enable_cuda=False):
         return Variable(torch.from_numpy(np_array).type(torch.LongTensor)).cuda()
 
     return Variable(torch.from_numpy(np_array).type(torch.LongTensor))
+
+
+def to_long_tensor(np_array):
+    """
+    convert to long torch tensor
+    :param np_array:
+    :return:
+    """
+    return torch.from_numpy(np_array).type(torch.LongTensor)
+
+
+def to_variable(tensor, enable_cuda=False):
+    """
+    convert to torch variable
+    :param tensor:
+    :param enable_cuda:
+    :return:
+    """
+    if enable_cuda:
+        return Variable(tensor).cuda()
+
+    return Variable(tensor)
 
 
 class MyNLLLoss(torch.nn.modules.loss._Loss):

@@ -10,7 +10,7 @@ import torch.optim as optim
 from dataset.squad_dataset import SquadDataset
 from models.match_lstm import MatchLSTMModel
 from utils.load_config import init_logging, read_config
-from utils.utils import MyNLLLoss
+from utils.utils import MyNLLLoss, to_variable
 from utils.eval import eval_on_model
 
 
@@ -76,31 +76,28 @@ def main():
     train_batch_size = global_config['train']['batch_size']
     valid_batch_size = global_config['train']['valid_batch_size']
 
-    train_batch_cnt = dataset.get_train_batch_cnt(train_batch_size)
-    valid_batch_cnt = dataset.get_dev_batch_cnt(valid_batch_size)
-
     best_valid_f1 = None
     # every epoch
     for epoch in range(global_config['train']['epoch']):
         # train
         model.train()  # set training = True, make sure right dropout
-        batch_train_gen = dataset.get_batch_train(train_batch_size, enable_cuda)
+        batch_train_loader = dataset.get_dataloader_train(train_batch_size)
         sum_loss = train_on_model(model=model,
                                   criterion=criterion,
                                   optimizer=optimizer,
-                                  batch_data=batch_train_gen,
-                                  batch_cnt=train_batch_cnt,
-                                  epoch=epoch)
+                                  batch_data=batch_train_loader,
+                                  epoch=epoch,
+                                  enable_cuda=enable_cuda)
         logger.info('epoch=%d, sum_loss=%.5f' % (epoch, sum_loss))
 
         # evaluate
         model.eval()  # let training = False, make sure right dropout
-        batch_dev_gen = dataset.get_batch_dev(valid_batch_size, enable_cuda)
+        batch_dev_loader = dataset.get_dataloader_dev(valid_batch_size)
         valid_score_em, valid_score_f1, valid_loss = eval_on_model(model=model,
                                                                    criterion=criterion,
-                                                                   batch_data=batch_dev_gen,
-                                                                   batch_cnt=valid_batch_cnt,
-                                                                   epoch=epoch)
+                                                                   batch_data=batch_dev_loader,
+                                                                   epoch=epoch,
+                                                                   enable_cuda=enable_cuda)
         logger.info("epoch=%d, ave_score_em=%.2f, ave_score_f1=%.2f, sum_loss=%.5f" %
                     (epoch, valid_score_em, valid_score_f1, valid_loss))
 
@@ -115,23 +112,23 @@ def main():
     logger.info('finished.')
 
 
-def train_on_model(model, criterion, optimizer, batch_data, batch_cnt, epoch):
+def train_on_model(model, criterion, optimizer, batch_data, epoch, enable_cuda):
     """
     train on every batch
     :param model:
     :param criterion:
     :param batch_data:
     :param optimizer:
-    :param train_batch_cnt:
     :param epoch:
     :return:
     """
+    batch_cnt = len(batch_data)
     sum_loss = 0.
     for i, batch in enumerate(batch_data):
         optimizer.zero_grad()
 
         # forward
-        bat_context, bat_question, bat_answer_range = batch['context'], batch['question'], batch['answer_range']
+        bat_context, bat_question, bat_answer_range = list(map(lambda x: to_variable(x, enable_cuda), list(batch)))
         pred_answer_range = model.forward(bat_context, bat_question)
 
         # get loss

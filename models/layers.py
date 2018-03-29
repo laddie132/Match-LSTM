@@ -118,8 +118,7 @@ class UniMatchLSTM(torch.nn.Module):
             cur_hp = Hp[t, ...].squeeze(0)                              # (batch, input_size)
             alpha = self.attention.forward(cur_hp, Hq, hidden[t][0])    # (batch, question_len)
             question_alpha = torch.bmm(alpha.unsqueeze(1), Hq.transpose(0, 1))\
-                .transpose(0, 1)\
-                .squeeze(0)                                             # (batch, input_size)
+                .squeeze(1)                                             # (batch, input_size)
             cur_z = torch.cat([cur_hp, question_alpha], dim=1)          # (batch, 2*input_size)
 
             cur_hidden = self.lstm.forward(cur_z, hidden[t])            # (batch, hidden_size), (batch, hidden_size)
@@ -261,7 +260,7 @@ class BoundaryPointer(torch.nn.Module):
     """
     answer_len = 2
 
-    def __init__(self, input_size, hidden_size):
+    def __init__(self, input_size, hidden_size, dropout_p):
         super(BoundaryPointer, self).__init__()
 
         self.input_size = input_size
@@ -270,7 +269,11 @@ class BoundaryPointer(torch.nn.Module):
         self.attention = PointerAttention(input_size, hidden_size)
         self.lstm = torch.nn.LSTMCell(input_size, hidden_size)
 
+        self.dropout = torch.nn.Dropout(p=dropout_p)
+
     def forward(self, Hr, h_0=None):
+        Hr = self.dropout.forward(Hr)
+
         if h_0 is None:
             batch_size = Hr.shape[1]
             h_0 = torch.autograd.Variable(Hr.data.new(batch_size, self.hidden_size).zero_())
@@ -282,8 +285,7 @@ class BoundaryPointer(torch.nn.Module):
             beta_out.append(beta)
 
             context_beta = torch.bmm(beta.unsqueeze(1), Hr.transpose(0, 1)) \
-                .transpose(0, 1) \
-                .squeeze(0)                                         # (batch, input_size)
+                .squeeze(1)                                         # (batch, input_size)
 
             hidden = self.lstm.forward(context_beta, hidden)        # (batch, hidden_size), (batch, hidden_size)
 
