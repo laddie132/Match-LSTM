@@ -115,7 +115,7 @@ class UniMatchLSTM(torch.nn.Module):
         hidden = [(h_0, h_0)]
 
         for t in range(context_len):
-            cur_hp = Hp[t, ...].squeeze(0)                              # (batch, input_size)
+            cur_hp = Hp[t, ...]                                         # (batch, input_size)
             alpha = self.attention.forward(cur_hp, Hq, hidden[t][0])    # (batch, question_len)
             question_alpha = torch.bmm(alpha.unsqueeze(1), Hq.transpose(0, 1))\
                 .squeeze(1)                                             # (batch, input_size)

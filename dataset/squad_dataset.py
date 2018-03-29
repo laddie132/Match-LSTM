@@ -23,7 +23,7 @@ class SquadDataset:
     def __init__(self, global_config):
         self.__data = {}
         self.__attr = {}
-        self.__id2word = {}
+        self.__id2word = []
 
         self.global_config = global_config
 
@@ -166,6 +166,10 @@ class SquadDataset:
         """
         s = map(lambda id: self.__id2word[id], s_id)
         return list(s)
+
+    def sentence_word2id(self, s):
+        s_id = map(lambda word: np.where(self.__id2word == word)[0][0], s)
+        return np.array(list(s_id))
 
 
 class CQA_Dataset(torch.utils.data.Dataset):
