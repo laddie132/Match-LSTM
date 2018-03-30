@@ -142,10 +142,10 @@ class PreprocessData:
 
                         tmp_str += s
                         if tmp_ans in tmp_str:
-                            pos_e = i + 1
+                            pos_e = i
                             break
 
-                    if pos_e <= pos_s:
+                    if pos_e < pos_s:
                         logger.error("Answer start position can't bigger than end position." +
                                      "\nContext:" + cur_context +
                                      "\nQuestion:" + cur_question +

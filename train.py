@@ -108,6 +108,7 @@ def main():
                        model_weight_path=global_config['data']['model_path'],
                        checkpoint_path=global_config['data']['checkpoint_path'])
             logger.info("saving model weight on epoch=%d" % epoch)
+            best_valid_f1 = valid_score_f1
 
     logger.info('finished.')
 
@@ -134,6 +135,8 @@ def train_on_model(model, criterion, optimizer, batch_data, epoch, enable_cuda):
         # get loss
         loss = criterion.forward(pred_answer_range, bat_answer_range)
         loss.backward()
+
+        # torch.nn.utils.clip_grad_norm(model.parameters(), 5)
         optimizer.step()  # update parameters
 
         # logging
@@ -147,7 +150,7 @@ def train_on_model(model, criterion, optimizer, batch_data, epoch, enable_cuda):
 
 def save_model(model, epoch, model_weight_path, checkpoint_path):
     """
-
+    save model weight without embedding
     :param model:
     :param epoch:
     :param model_weight_path:

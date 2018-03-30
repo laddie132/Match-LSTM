@@ -227,7 +227,7 @@ class PointerAttention(torch.nn.Module):
         self.linear_wa = torch.nn.Linear(hidden_size, hidden_size)
         self.linear_wf = torch.nn.Linear(hidden_size, 1)
 
-    def forward(self, Hr, Hk_pre, Hr_mask):
+    def forward(self, Hr, Hr_mask, Hk_pre):
         wr_hr = self.linear_wr(Hr)  # (context_len, batch, hidden_size)
         wa_ha = self.linear_wa(Hk_pre).unsqueeze(0)  # (1, batch, hidden_size)
         f = F.tanh(wr_hr + wa_ha)  # (context_len, batch, hidden_size)
@@ -237,7 +237,6 @@ class PointerAttention(torch.nn.Module):
             .transpose(0, 1)  # (batch, context_len)
 
         beta = masked_softmax(beta_tmp, m=Hr_mask, dim=1)
-
         return beta
 
 
@@ -270,7 +269,7 @@ class BoundaryPointer(torch.nn.Module):
         Hr(context_len, batch, hidden_size * num_directions): question-aware context representation
         h_0(batch, hidden_size): init lstm cell hidden state
     Outputs:
-        **output** start and end answer index possibility position in context, fixed length
+        **output** (answer_len, batch, context_len): start and end answer index possibility position in context
     """
     answer_len = 2
 
@@ -295,7 +294,7 @@ class BoundaryPointer(torch.nn.Module):
         beta_out = []
 
         for t in range(self.answer_len):
-            beta = self.attention.forward(Hr, hidden[0], Hr_mask)  # (batch, context_len)
+            beta = self.attention.forward(Hr, Hr_mask, hidden[0])  # (batch, context_len)
             beta_out.append(beta)
 
             context_beta = torch.bmm(beta.unsqueeze(1), Hr.transpose(0, 1)) \
@@ -304,6 +303,11 @@ class BoundaryPointer(torch.nn.Module):
             hidden = self.lstm.forward(context_beta, hidden)  # (batch, hidden_size), (batch, hidden_size)
 
         result = torch.stack(beta_out, dim=0)
+
+        # todo: unexplainable
+        new_mask = torch.neg((Hr_mask - 1) * 1e-6)    # mask replace zeros with 1e-6, make sure no gradient explosion
+        result = result + new_mask.unsqueeze(0)
+
         return result
 
 
