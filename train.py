@@ -76,12 +76,14 @@ def main():
     train_batch_size = global_config['train']['batch_size']
     valid_batch_size = global_config['train']['valid_batch_size']
 
+    batch_train_loader = dataset.get_dataloader_train(train_batch_size)
+    batch_dev_loader = dataset.get_dataloader_dev(valid_batch_size)
+
     best_valid_f1 = None
     # every epoch
     for epoch in range(global_config['train']['epoch']):
         # train
         model.train()  # set training = True, make sure right dropout
-        batch_train_loader = dataset.get_dataloader_train(train_batch_size)
         sum_loss = train_on_model(model=model,
                                   criterion=criterion,
                                   optimizer=optimizer,
@@ -92,7 +94,6 @@ def main():
 
         # evaluate
         model.eval()  # let training = False, make sure right dropout
-        batch_dev_loader = dataset.get_dataloader_dev(valid_batch_size)
         valid_score_em, valid_score_f1, valid_loss = eval_on_model(model=model,
                                                                    criterion=criterion,
                                                                    batch_data=batch_dev_loader,

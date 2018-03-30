@@ -6,6 +6,7 @@ __author__ = 'han'
 import torch
 import logging
 from utils.utils import to_variable
+from dataset.preprocess_data import PreprocessData
 
 logger = logging.getLogger(__name__)
 
@@ -87,17 +88,17 @@ def evaluate_f1(context_tokens, y_pred, y_true):
     answer_len = 2
     candidate_answer_size = int(len(y_true) / answer_len)
 
-    pred_tokens = set(context_tokens[y_pred[0]:y_pred[1]])
+    pred_tokens = set(context_tokens[y_pred[0]:y_pred[1]+1])
     if len(pred_tokens) == 0:
         return 0
 
     all_f1 = []
     for i in range(candidate_answer_size):
         tmp_true = y_true[(i * 2):(i * 2 + 2)]
-        if tmp_true[1] == 0:
+        if tmp_true[0] == PreprocessData.answer_padding_idx:
             continue
 
-        true_tokens = set(context_tokens[tmp_true[0]:tmp_true[1]])
+        true_tokens = set(context_tokens[tmp_true[0]:tmp_true[1]+1])
         same_tokens = pred_tokens.intersection(true_tokens)
 
         precision = len(same_tokens) * 1. / len(pred_tokens)

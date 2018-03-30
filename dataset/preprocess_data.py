@@ -23,6 +23,7 @@ class PreprocessData:
 
     padding = '__padding__'  # id = 0
     padding_idx = 0
+    answer_padding_idx = -1
 
     __compress_option = dict(compression="gzip", compression_opts=9, shuffle=False)
 
@@ -265,18 +266,28 @@ class PreprocessData:
 
         logger.info('padding id vectors...')
         self.__data['train'] = {
-            'context': pad_sequences(train_cache_nopad['context'], maxlen=self.__max_context_token_len,
-                                     padding='post'),
-            'question': pad_sequences(train_cache_nopad['question'], maxlen=self.__max_question_token_len,
-                                      padding='post'),
-            'answer_range': pad_sequences(train_cache_nopad['answer_range'], maxlen=2, padding='post')}
+            'context': pad_sequences(train_cache_nopad['context'],
+                                     maxlen=self.__max_context_token_len,
+                                     padding='post',
+                                     value=self.padding_idx),
+            'question': pad_sequences(train_cache_nopad['question'],
+                                      maxlen=self.__max_question_token_len,
+                                      padding='post',
+                                      value=self.padding_idx),
+            'answer_range': np.array(train_cache_nopad['answer_range'])}
         self.__data['dev'] = {
-            'context': pad_sequences(dev_cache_nopad['context'], maxlen=self.__max_context_token_len,
-                                     padding='post'),
-            'question': pad_sequences(dev_cache_nopad['question'], maxlen=self.__max_question_token_len,
-                                      padding='post'),
-            'answer_range': pad_sequences(dev_cache_nopad['answer_range'], maxlen=self.__max_answer_len,
-                                          padding='post')}
+            'context': pad_sequences(dev_cache_nopad['context'],
+                                     maxlen=self.__max_context_token_len,
+                                     padding='post',
+                                     value=self.padding_idx),
+            'question': pad_sequences(dev_cache_nopad['question'],
+                                      maxlen=self.__max_question_token_len,
+                                      padding='post',
+                                      value=self.padding_idx),
+            'answer_range': pad_sequences(dev_cache_nopad['answer_range'],
+                                          maxlen=self.__max_answer_len,
+                                          padding='post',
+                                          value=self.answer_padding_idx)}
 
         logger.info('export to hdf5 file...')
         self.__export_squad_hdf5()
