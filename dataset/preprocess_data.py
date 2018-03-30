@@ -88,7 +88,7 @@ class PreprocessData:
         """
         contexts_wid = []
         questions_wid = []
-        answers_range_wid = []  # each answer use the [start,end) representation, all the answer horizontal concat
+        answers_range_wid = []  # each answer use the [start,end] representation, all the answer horizontal concat
 
         for question_grp in contexts_qas:
             cur_context = question_grp['context']

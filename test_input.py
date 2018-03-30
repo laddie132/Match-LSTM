@@ -69,7 +69,7 @@ def main():
     out_ans_range = torch.max(out_ans_prop, 2)[1].data.numpy()
 
     start = out_ans_range[0][0]
-    end = out_ans_range[0][1]
+    end = out_ans_range[0][1] + 1
 
     out_answer_id = context_id[start:end]
     out_answer = dataset.sentence_id2word(out_answer_id)

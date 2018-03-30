@@ -145,7 +145,7 @@ class MyNLLLoss(torch.nn.modules.loss._Loss):
 
     Shape:
         - y_pred: (batch, answer_len, prob)
-        - y_true: (batch, answer_len)       # todo: end postion should also include
+        - y_true: (batch, answer_len)
         - output: loss
     """
     def __init__(self):
@@ -153,11 +153,6 @@ class MyNLLLoss(torch.nn.modules.loss._Loss):
 
     def forward(self, y_pred, y_true):
         torch.nn.modules.loss._assert_no_grad(y_true)
-
-        a = Variable(torch.LongTensor([[0, 1]]))
-        if y_true.is_cuda:
-            a = a.cuda()
-        y_true = y_true - a                     # temp
 
         y_pred_log = torch.log(y_pred)
         loss = []
