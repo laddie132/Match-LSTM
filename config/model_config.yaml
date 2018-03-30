@@ -30,6 +30,7 @@ train:
   adamax_beta1: 0.9
   adamax_beta2: 0.999
   learning_rate: 0.002
+  clip_grad_norm: 5
 
 test:
   batch_size: 32

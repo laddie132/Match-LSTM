@@ -79,6 +79,8 @@ def main():
     batch_train_loader = dataset.get_dataloader_train(train_batch_size)
     batch_dev_loader = dataset.get_dataloader_dev(valid_batch_size)
 
+    clip_grad_max = global_config['train']['clip_grad_norm']
+
     best_valid_f1 = None
     # every epoch
     for epoch in range(global_config['train']['epoch']):
@@ -89,6 +91,7 @@ def main():
                                   optimizer=optimizer,
                                   batch_data=batch_train_loader,
                                   epoch=epoch,
+                                  clip_grad_max=clip_grad_max,
                                   enable_cuda=enable_cuda)
         logger.info('epoch=%d, sum_loss=%.5f' % (epoch, sum_loss))
 
@@ -114,7 +117,7 @@ def main():
     logger.info('finished.')
 
 
-def train_on_model(model, criterion, optimizer, batch_data, epoch, enable_cuda):
+def train_on_model(model, criterion, optimizer, batch_data, epoch, clip_grad_max, enable_cuda):
     """
     train on every batch
     :param model:
@@ -122,6 +125,8 @@ def train_on_model(model, criterion, optimizer, batch_data, epoch, enable_cuda):
     :param batch_data:
     :param optimizer:
     :param epoch:
+    :param clip_grad_max:
+    :param enable_cuda:
     :return:
     """
     batch_cnt = len(batch_data)
@@ -137,7 +142,7 @@ def train_on_model(model, criterion, optimizer, batch_data, epoch, enable_cuda):
         loss = criterion.forward(pred_answer_range, bat_answer_range)
         loss.backward()
 
-        # torch.nn.utils.clip_grad_norm(model.parameters(), 5)
+        torch.nn.utils.clip_grad_norm(model.parameters(), clip_grad_max)        # fix gradient explosion
         optimizer.step()  # update parameters
 
         # logging
