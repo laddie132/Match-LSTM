@@ -16,7 +16,7 @@ model:
   embedding_size: 300
   hidden_size: 150  # one-direction
 
-  encoder_word_layers: 3
+  encoder_word_layers: 1
   encoder_char_layers: 1
   encoder_bidirection: True
   encoder_char: False

@@ -11,7 +11,7 @@ import numpy as np
 from dataset.squad_dataset import SquadDataset
 from models.match_lstm import MatchLSTMModel
 from utils.load_config import init_logging, read_config
-from utils.utils import to_long_variable
+from utils.utils import to_long_variable, count_parameters
 
 init_logging()
 logger = logging.getLogger(__name__)
@@ -35,6 +35,8 @@ def main():
     if enable_cuda:
         model = model.cuda()
     model.eval()  # let training = False, make sure right dropout
+
+    logging.info('model parameters count: %d' % count_parameters(model))
 
     # load model weight
     logger.info('loading model weight...')

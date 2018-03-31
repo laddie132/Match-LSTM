@@ -189,7 +189,7 @@ class MatchRNN(torch.nn.Module):
         if bidirectional:
             self.right_match_rnn = UniMatchRNN(mode, input_size, hidden_size, gated_attention)
 
-    def masked_flip(vin, mask):
+    def masked_flip(self, vin, mask):
         """
         flip a tensor
         :param vin: input batch with padding values
@@ -219,7 +219,7 @@ class MatchRNN(torch.nn.Module):
         rtn_hidden = left_hidden
 
         if self.bidirectional:
-            Hp_inv = masked_flip(Hp, Hp_mask)
+            Hp_inv = self.masked_flip(Hp, Hp_mask)
             right_hidden = self.right_match_rnn.forward(Hp_inv, Hq, Hq_mask)
             rtn_hidden = torch.cat((left_hidden, right_hidden), dim=2)
 
