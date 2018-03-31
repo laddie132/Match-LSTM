@@ -104,12 +104,15 @@ class UniMatchRNN(torch.nn.Module):
         Hr(context_len, batch, hidden_size): question-aware context representation
     """
 
-    def __init__(self, mode, input_size, hidden_size):
+    def __init__(self, mode, input_size, hidden_size, gated_attention=False):
         super(UniMatchRNN, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
 
         self.attention = MatchRNNAttention(input_size, hidden_size)
+
+        self.gated_attention = gated_attention
+        self.gated_linear = torch.nn.Linear(2 * input_size, 2 * input_size)
 
         self.mode = mode
         if mode == 'LSTM':
@@ -143,7 +146,9 @@ class UniMatchRNN(torch.nn.Module):
                 .squeeze(1)  # (batch, input_size)
             cur_z = torch.cat([cur_hp, question_alpha], dim=1)  # (batch, 2*input_size)
 
-            # todo: gated attention
+            # gated
+            if self.gated_attention:
+                cur_z = F.sigmoid(self.gated_linear.forward(cur_z))
 
             cur_hidden = self.hidden_cell.forward(cur_z, hidden[t])  # (batch, hidden_size), when lstm output tuple
             hidden.append(cur_hidden)
@@ -163,6 +168,7 @@ class MatchRNN(torch.nn.Module):
         - input_size: The number of expected features in the input Hp and Hq
         - hidden_size: The number of features in the hidden state Hr
         - bidirectional: If ``True``, becomes a bidirectional RNN. Default: ``False``
+        - gated_attention: If ``True``, gated attention used, see more on R-NET
         - enable_cuda: enable GPU accelerate or not
 
     Inputs:
@@ -175,15 +181,15 @@ class MatchRNN(torch.nn.Module):
         Hr(context_len, batch, hidden_size * num_directions): question-aware context representation
     """
 
-    def __init__(self, mode, input_size, hidden_size, bidirectional, enable_cuda):
+    def __init__(self, mode, input_size, hidden_size, bidirectional, gated_attention, enable_cuda):
         super(MatchRNN, self).__init__()
         self.bidirectional = bidirectional
         self.num_directions = 1 if bidirectional else 2
         self.enable_cuda = enable_cuda
 
-        self.left_match_rnn = UniMatchRNN(mode, input_size, hidden_size)
+        self.left_match_rnn = UniMatchRNN(mode, input_size, hidden_size, gated_attention)
         if bidirectional:
-            self.right_match_rnn = UniMatchRNN(mode, input_size, hidden_size)
+            self.right_match_rnn = UniMatchRNN(mode, input_size, hidden_size, gated_attention)
 
     def flip(self, vin, mask):
         """

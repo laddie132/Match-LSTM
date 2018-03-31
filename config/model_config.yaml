@@ -22,6 +22,7 @@ model:
   match_lstm_bidirection: True
 
   hidden_mode: GRU # LSTM or GRU
+  gated_attention: True
 
 train:
   batch_size: 32

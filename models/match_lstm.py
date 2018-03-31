@@ -40,6 +40,7 @@ class MatchLSTMModel(torch.nn.Module):
         encoder_char_layers = global_config['model']['encoder_char_layers']
 
         hidden_mode = global_config['model']['hidden_mode']
+        gated_attention = global_config['model']['gated_attention']
 
         dropout_p = global_config['model']['dropout_p']
         self.dropout = torch.nn.Dropout(p=dropout_p)
@@ -58,6 +59,7 @@ class MatchLSTMModel(torch.nn.Module):
                                    input_size=encode_out_size,
                                    hidden_size=hidden_size,
                                    bidirectional=match_lstm_bidirection,
+                                   gated_attention=gated_attention,
                                    enable_cuda=self.enable_cuda)
         match_lstm_out_size = hidden_size * match_lstm_direction_num
 
