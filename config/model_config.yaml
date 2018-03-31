@@ -15,6 +15,8 @@ model:
 
   embedding_size: 300
   hidden_size: 150  # one-direction
+  encoder_word_layers: 3
+  encoder_char_layers: 1
   encoder_bidirection: True
   encoder_char: False
   match_lstm_bidirection: True
@@ -22,6 +24,7 @@ model:
 train:
   batch_size: 64
   valid_batch_size: 64
+  hidden_mode: LSTM # LSTM or GRU
 
   epoch: 30
   enable_cuda: False

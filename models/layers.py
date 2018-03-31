@@ -53,9 +53,9 @@ class GloveEmbedding(torch.nn.Module):
         return out_emb, mask
 
 
-class MatchLSTMAttention(torch.nn.Module):
+class MatchRNNAttention(torch.nn.Module):
     r"""
-    attention mechanism in match-lstm
+    attention mechanism in match-rnn
     Args:
         - input_size: The number of expected features in the input Hp and Hq
         - hidden_size: The number of features in the hidden state Hr
@@ -70,7 +70,7 @@ class MatchLSTMAttention(torch.nn.Module):
     """
 
     def __init__(self, input_size, hidden_size):
-        super(MatchLSTMAttention, self).__init__()
+        super(MatchRNNAttention, self).__init__()
 
         self.linear_wq = torch.nn.Linear(input_size, hidden_size)
         self.linear_wp = torch.nn.Linear(input_size, hidden_size)
@@ -91,7 +91,7 @@ class MatchLSTMAttention(torch.nn.Module):
 
 class UniMatchLSTM(torch.nn.Module):
     r"""
-    interaction context and question with attention mechanism, one direction
+    interaction context and question with attention mechanism, one direction, using LSTM cell
     Args:
         - input_size: The number of expected features in the input Hp and Hq
         - hidden_size: The number of features in the hidden state Hr
@@ -109,7 +109,7 @@ class UniMatchLSTM(torch.nn.Module):
         self.input_size = input_size
         self.hidden_size = hidden_size
 
-        self.attention = MatchLSTMAttention(input_size, hidden_size)
+        self.attention = MatchRNNAttention(input_size, hidden_size)
         self.lstm = torch.nn.LSTMCell(input_size=2 * input_size, hidden_size=hidden_size)
 
     def forward(self, Hp, Hq, Hq_mask):
@@ -135,7 +135,54 @@ class UniMatchLSTM(torch.nn.Module):
         return result
 
 
-class MatchLSTM(torch.nn.Module):
+class UniMatchGRU(torch.nn.Module):
+    r"""
+    interaction context and question with attention mechanism, one direction, using GRU cell
+    Args:
+        - input_size: The number of expected features in the input Hp and Hq
+        - hidden_size: The number of features in the hidden state Hr
+
+    Inputs:
+        Hp(context_len, batch, input_size): context encoded
+        Hq(question_len, batch, input_size): question encoded
+
+    Outputs:
+        Hr(context_len, batch, hidden_size): question-aware context representation
+    """
+
+    def __init__(self, input_size, hidden_size):
+        super(UniMatchGRU, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+
+        self.attention = MatchRNNAttention(input_size, hidden_size)
+
+        self.gru = torch.nn.GRUCell(input_size=2 * input_size, hidden_size=hidden_size)
+
+    def forward(self, Hp, Hq, Hq_mask):
+        batch_size = Hp.shape[1]
+        context_len = Hp.shape[0]
+
+        # init hidden with the same type of input data
+        h_0 = torch.autograd.Variable(Hq.data.new(batch_size, self.hidden_size).zero_())
+
+        hidden = [h_0]
+        for t in range(context_len):
+            cur_hp = Hp[t, ...]  # (batch, input_size)
+
+            alpha = self.attention.forward(cur_hp, Hq, hidden[t], Hq_mask)  # (batch, question_len)
+            question_alpha = torch.bmm(alpha.unsqueeze(1), Hq.transpose(0, 1)) \
+                .squeeze(1)  # (batch, input_size)
+            cur_z = torch.cat([cur_hp, question_alpha], dim=1)  # (batch, 2*input_size)
+
+            cur_hidden = self.gru.forward(cur_z, hidden[t])  # (batch, hidden_size)
+            hidden.append(cur_hidden)
+
+        result = torch.stack(hidden[1:], dim=0)  # (context_len, batch, hidden_size)
+        return result
+
+
+class MatchRNN(torch.nn.Module):
     r"""
     interaction context and question with attention mechanism
     Args:
@@ -154,16 +201,23 @@ class MatchLSTM(torch.nn.Module):
         Hr(context_len, batch, hidden_size * num_directions): question-aware context representation
     """
 
-    def __init__(self, input_size, hidden_size, bidirectional, enable_cuda):
-        super(MatchLSTM, self).__init__()
+    def __init__(self, mode, input_size, hidden_size, bidirectional, enable_cuda):
+        super(MatchRNN, self).__init__()
         self.bidirectional = bidirectional
         self.num_directions = 1 if bidirectional else 2
         self.enable_cuda = enable_cuda
 
-        self.left_match_lstm = UniMatchLSTM(input_size, hidden_size)
+        if mode == 'LSTM':
+            self.left_match_rnn = UniMatchLSTM(input_size, hidden_size)
+            if bidirectional:
+                self.right_match_rnn = UniMatchLSTM(input_size, hidden_size)
 
-        if bidirectional:
-            self.right_match_lstm = UniMatchLSTM(input_size, hidden_size)
+        elif mode == 'GRU':
+            self.left_match_rnn = UniMatchGRU(input_size, hidden_size)
+            if bidirectional:
+                self.right_match_rnn = UniMatchGRU(input_size, hidden_size)
+        else:
+            raise ValueError('Wrong mode select %s, change to LSTM or GRU' % mode)
 
     def flip(self, vin, mask):
         """
@@ -172,7 +226,7 @@ class MatchLSTM(torch.nn.Module):
         :param mask: show whether padding index
         :return:
         """
-        length = mask.data.eq(1).long().sum(1).squeeze()        # todo: speed up, vectoration
+        length = mask.data.eq(1).long().sum(1).squeeze()  # todo: speed up, vectoration
 
         flip_list = []
         for i in range(vin.shape[1]):
@@ -191,12 +245,12 @@ class MatchLSTM(torch.nn.Module):
         return inv_tensor
 
     def forward(self, Hp, Hp_mask, Hq, Hq_mask):
-        left_hidden = self.left_match_lstm.forward(Hp, Hq, Hq_mask)
+        left_hidden = self.left_match_rnn.forward(Hp, Hq, Hq_mask)
         rtn_hidden = left_hidden
 
         if self.bidirectional:
             Hp_inv = self.flip(Hp, Hp_mask)
-            right_hidden = self.right_match_lstm.forward(Hp_inv, Hq, Hq_mask)
+            right_hidden = self.right_match_rnn.forward(Hp_inv, Hq, Hq_mask)
             rtn_hidden = torch.cat((left_hidden, right_hidden), dim=2)
 
         real_rtn_hidden = Hp_mask.transpose(0, 1).unsqueeze(2) * rtn_hidden
@@ -273,14 +327,21 @@ class BoundaryPointer(torch.nn.Module):
     """
     answer_len = 2
 
-    def __init__(self, input_size, hidden_size, dropout_p):
+    def __init__(self, mode, input_size, hidden_size, dropout_p):
         super(BoundaryPointer, self).__init__()
 
         self.input_size = input_size
         self.hidden_size = hidden_size
 
         self.attention = PointerAttention(input_size, hidden_size)
-        self.lstm = torch.nn.LSTMCell(input_size, hidden_size)
+
+        self.mode = mode
+        if mode == 'LSTM':
+            self.hidden_cell = torch.nn.LSTMCell(input_size, hidden_size)
+        elif mode == 'GRU':
+            self.hidden_cell = torch.nn.GRUCell(input_size, hidden_size)
+        else:
+            raise ValueError('Wrong mode select %s, change to LSTM or GRU' % mode)
 
         self.dropout = torch.nn.Dropout(p=dropout_p)
 
@@ -290,35 +351,44 @@ class BoundaryPointer(torch.nn.Module):
         if h_0 is None:
             batch_size = Hr.shape[1]
             h_0 = torch.autograd.Variable(Hr.data.new(batch_size, self.hidden_size).zero_())
-        hidden = (h_0, h_0)
+
+        if self.mode == 'LSTM':
+            hidden = (h_0, h_0)
+        else:
+            hidden = h_0
         beta_out = []
 
         for t in range(self.answer_len):
-            beta = self.attention.forward(Hr, Hr_mask, hidden[0])  # (batch, context_len)
+            if self.mode == 'LSTM':
+                attention_input = hidden[0]
+            else:
+                attention_input = hidden
+
+            beta = self.attention.forward(Hr, Hr_mask,attention_input)  # (batch, context_len)
             beta_out.append(beta)
 
             context_beta = torch.bmm(beta.unsqueeze(1), Hr.transpose(0, 1)) \
                 .squeeze(1)  # (batch, input_size)
 
-            hidden = self.lstm.forward(context_beta, hidden)  # (batch, hidden_size), (batch, hidden_size)
+            hidden = self.hidden_cell.forward(context_beta, hidden)  # (batch, hidden_size), (batch, hidden_size)
 
         result = torch.stack(beta_out, dim=0)
 
         # todo: unexplainable
-        new_mask = torch.neg((Hr_mask - 1) * 1e-6)    # mask replace zeros with 1e-6, make sure no gradient explosion
+        new_mask = torch.neg((Hr_mask - 1) * 1e-6)  # mask replace zeros with 1e-6, make sure no gradient explosion
         result = result + new_mask.unsqueeze(0)
 
         return result
 
 
-class MyLSTM(torch.nn.Module):
+class MyRNNBase(torch.nn.Module):
     """
-    LSTM with packed sequence and dropout
+    RNN with packed sequence and dropout
     Args:
         input_size: The number of expected features in the input x
         hidden_size: The number of features in the hidden state h
         bidirectional: If ``True``, becomes a bidirectional RNN. Default: ``False``
-        dropout_p: dropout probability to input data
+        dropout_p: dropout probability to input data, and also dropout along hidden layers
 
     Inputs: input, mask
         - **input** (batch, seq_len, input_size): tensor containing the features
@@ -333,12 +403,23 @@ class MyLSTM(torch.nn.Module):
 
     """
 
-    def __init__(self, input_size, hidden_size, bidirectional, dropout_p):
-        super(MyLSTM, self).__init__()
+    def __init__(self, mode, input_size, hidden_size, num_layers, bidirectional, dropout_p):
+        super(MyRNNBase, self).__init__()
 
-        self.lstm = torch.nn.LSTM(input_size=input_size,
-                                  hidden_size=hidden_size,
-                                  bidirectional=bidirectional)
+        if mode == 'LSTM':
+            self.hidden = torch.nn.LSTM(input_size=input_size,
+                                        hidden_size=hidden_size,
+                                        num_layers=num_layers,
+                                        dropout=dropout_p,
+                                        bidirectional=bidirectional)
+        elif mode == 'GRU':
+            self.hidden = torch.nn.GRU(input_size=input_size,
+                                       hidden_size=hidden_size,
+                                       num_layers=num_layers,
+                                       dropout=dropout_p,
+                                       bidirectional=bidirectional)
+        else:
+            raise ValueError('Wrong mode select %s, change to LSTM or GRU' % mode)
         self.dropout = torch.nn.Dropout(p=dropout_p)
 
     def forward(self, v, mask):
@@ -362,12 +443,13 @@ class MyLSTM(torch.nn.Module):
         v_dropout = self.dropout.forward(v_pack.data)
         v_pack_dropout = torch.nn.utils.rnn.PackedSequence(v_dropout, v_pack.batch_sizes)
 
-        o_pack_dropout, _ = self.lstm.forward(v_pack_dropout)
+        o_pack_dropout, _ = self.hidden.forward(v_pack_dropout)
         o, _ = torch.nn.utils.rnn.pad_packed_sequence(o_pack_dropout)
 
         # unsorted o
-        o_unsort = o.index_select(1, idx_unsort)        # notice here first dim is seq_len
+        o_unsort = o.index_select(1, idx_unsort)  # notice here first dim is seq_len
         new_mask = generate_mask(lengths_sort, enable_cuda=v.is_cuda)
         new_mask_unsort = new_mask.index_select(0, idx_unsort)
 
         return o_unsort, new_mask_unsort
+

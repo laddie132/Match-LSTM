@@ -58,7 +58,7 @@ def analysis_log_score(log_txt):
 
 
 def main_loss():
-    with open('../logs/6-debug.log') as f_log:
+    with open('../logs/7-debug.log') as f_log:
         log_lines = f_log.readlines()
         value_log = log_lines
 
@@ -79,7 +79,7 @@ def main_loss():
 
 
 def main_score():
-    with open('../logs/6-debug.log') as f_log:
+    with open('../logs/7-debug.log') as f_log:
         log_lines = f_log.readlines()
         value_log = log_lines
 

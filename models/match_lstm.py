@@ -36,25 +36,33 @@ class MatchLSTMModel(torch.nn.Module):
         match_lstm_bidirection = global_config['model']['match_lstm_bidirection']
         match_lstm_direction_num = 2 if match_lstm_bidirection else 1
 
+        encoder_word_layers = global_config['model']['encoder_word_layers']
+        encoder_char_layers = global_config['model']['encoder_char_layers']
+
+        hidden_mode = global_config['model']['hidden_mode']
+
         dropout_p = global_config['model']['dropout_p']
         self.dropout = torch.nn.Dropout(p=dropout_p)
 
         # construct model
-        self.embedding = GloveEmbedding(dataset_h5_path=global_config['data']['dataset_h5'],
-                                        dropout_p=0.)
-        self.encoder = MyLSTM(input_size=embedding_size,
-                              hidden_size=hidden_size,
-                              bidirectional=encoder_bidirection,
-                              dropout_p=dropout_p)
+        self.embedding = GloveEmbedding(dataset_h5_path=global_config['data']['dataset_h5'])
+        self.encoder = MyRNNBase(mode=hidden_mode,
+                                 input_size=embedding_size,
+                                 hidden_size=hidden_size,
+                                 num_layers=encoder_word_layers,
+                                 bidirectional=encoder_bidirection,
+                                 dropout_p=dropout_p)
         encode_out_size = hidden_size * encoder_direction_num
 
-        self.match_lstm = MatchLSTM(input_size=encode_out_size,
-                                    hidden_size=hidden_size,
-                                    bidirectional=match_lstm_bidirection,
-                                    enable_cuda=self.enable_cuda)
+        self.match_lstm = MatchRNN(mode=hidden_mode,
+                                   input_size=encode_out_size,
+                                   hidden_size=hidden_size,
+                                   bidirectional=match_lstm_bidirection,
+                                   enable_cuda=self.enable_cuda)
         match_lstm_out_size = hidden_size * match_lstm_direction_num
 
-        self.pointer_net = BoundaryPointer(input_size=match_lstm_out_size,
+        self.pointer_net = BoundaryPointer(mode=hidden_mode,
+                                           input_size=match_lstm_out_size,
                                            hidden_size=hidden_size,
                                            dropout_p=dropout_p)
 
