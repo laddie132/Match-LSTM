@@ -21,11 +21,11 @@ model:
   encoder_char: False
   match_lstm_bidirection: True
 
-train:
-  batch_size: 64
-  valid_batch_size: 64
-  hidden_mode: LSTM # LSTM or GRU
+  hidden_mode: GRU # LSTM or GRU
 
+train:
+  batch_size: 32
+  valid_batch_size: 32
   epoch: 30
   enable_cuda: False
 

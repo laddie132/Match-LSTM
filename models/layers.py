@@ -89,7 +89,7 @@ class MatchRNNAttention(torch.nn.Module):
         return alpha
 
 
-class UniMatchLSTM(torch.nn.Module):
+class UniMatchRNN(torch.nn.Module):
     r"""
     interaction context and question with attention mechanism, one direction, using LSTM cell
     Args:
@@ -104,60 +104,20 @@ class UniMatchLSTM(torch.nn.Module):
         Hr(context_len, batch, hidden_size): question-aware context representation
     """
 
-    def __init__(self, input_size, hidden_size):
-        super(UniMatchLSTM, self).__init__()
-        self.input_size = input_size
-        self.hidden_size = hidden_size
-
-        self.attention = MatchRNNAttention(input_size, hidden_size)
-        self.lstm = torch.nn.LSTMCell(input_size=2 * input_size, hidden_size=hidden_size)
-
-    def forward(self, Hp, Hq, Hq_mask):
-        batch_size = Hp.shape[1]
-        context_len = Hp.shape[0]
-
-        # init hidden with the same type of input data
-        h_0 = torch.autograd.Variable(Hq.data.new(batch_size, self.hidden_size).zero_())
-        hidden = [(h_0, h_0)]
-
-        for t in range(context_len):
-            cur_hp = Hp[t, ...]  # (batch, input_size)
-            alpha = self.attention.forward(cur_hp, Hq, hidden[t][0], Hq_mask)  # (batch, question_len)
-            question_alpha = torch.bmm(alpha.unsqueeze(1), Hq.transpose(0, 1)) \
-                .squeeze(1)  # (batch, input_size)
-            cur_z = torch.cat([cur_hp, question_alpha], dim=1)  # (batch, 2*input_size)
-
-            cur_hidden = self.lstm.forward(cur_z, hidden[t])  # (batch, hidden_size), (batch, hidden_size)
-            hidden.append(cur_hidden)
-
-        hidden_state = map(lambda x: x[0], hidden)
-        result = torch.stack(list(hidden_state)[1:], dim=0)  # (context_len, batch, hidden_size)
-        return result
-
-
-class UniMatchGRU(torch.nn.Module):
-    r"""
-    interaction context and question with attention mechanism, one direction, using GRU cell
-    Args:
-        - input_size: The number of expected features in the input Hp and Hq
-        - hidden_size: The number of features in the hidden state Hr
-
-    Inputs:
-        Hp(context_len, batch, input_size): context encoded
-        Hq(question_len, batch, input_size): question encoded
-
-    Outputs:
-        Hr(context_len, batch, hidden_size): question-aware context representation
-    """
-
-    def __init__(self, input_size, hidden_size):
-        super(UniMatchGRU, self).__init__()
+    def __init__(self, mode, input_size, hidden_size):
+        super(UniMatchRNN, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
 
         self.attention = MatchRNNAttention(input_size, hidden_size)
 
-        self.gru = torch.nn.GRUCell(input_size=2 * input_size, hidden_size=hidden_size)
+        self.mode = mode
+        if mode == 'LSTM':
+            self.hidden_cell = torch.nn.LSTMCell(input_size=2 * input_size, hidden_size=hidden_size)
+        elif mode == 'GRU':
+            self.hidden_cell = torch.nn.GRUCell(input_size=2 * input_size, hidden_size=hidden_size)
+        else:
+            raise ValueError('Wrong mode select %s, change to LSTM or GRU' % mode)
 
     def forward(self, Hp, Hq, Hq_mask):
         batch_size = Hp.shape[1]
@@ -166,19 +126,33 @@ class UniMatchGRU(torch.nn.Module):
         # init hidden with the same type of input data
         h_0 = torch.autograd.Variable(Hq.data.new(batch_size, self.hidden_size).zero_())
 
-        hidden = [h_0]
+        if self.mode == 'LSTM':
+            hidden = [(h_0, h_0)]
+        else:
+            hidden = [h_0]
+
         for t in range(context_len):
             cur_hp = Hp[t, ...]  # (batch, input_size)
+            if self.mode == 'LSTM':
+                attention_input = hidden[t][0]
+            else:
+                attention_input = hidden[t]
 
-            alpha = self.attention.forward(cur_hp, Hq, hidden[t], Hq_mask)  # (batch, question_len)
+            alpha = self.attention.forward(cur_hp, Hq, attention_input, Hq_mask)  # (batch, question_len)
             question_alpha = torch.bmm(alpha.unsqueeze(1), Hq.transpose(0, 1)) \
                 .squeeze(1)  # (batch, input_size)
             cur_z = torch.cat([cur_hp, question_alpha], dim=1)  # (batch, 2*input_size)
 
-            cur_hidden = self.gru.forward(cur_z, hidden[t])  # (batch, hidden_size)
+            # todo: gated attention
+
+            cur_hidden = self.hidden_cell.forward(cur_z, hidden[t])  # (batch, hidden_size), when lstm output tuple
             hidden.append(cur_hidden)
 
-        result = torch.stack(hidden[1:], dim=0)  # (context_len, batch, hidden_size)
+        if self.mode == 'LSTM':
+            hidden_state = list(map(lambda x: x[0], hidden))
+        else:
+            hidden_state = hidden
+        result = torch.stack(hidden_state[1:], dim=0)  # (context_len, batch, hidden_size)
         return result
 
 
@@ -207,17 +181,9 @@ class MatchRNN(torch.nn.Module):
         self.num_directions = 1 if bidirectional else 2
         self.enable_cuda = enable_cuda
 
-        if mode == 'LSTM':
-            self.left_match_rnn = UniMatchLSTM(input_size, hidden_size)
-            if bidirectional:
-                self.right_match_rnn = UniMatchLSTM(input_size, hidden_size)
-
-        elif mode == 'GRU':
-            self.left_match_rnn = UniMatchGRU(input_size, hidden_size)
-            if bidirectional:
-                self.right_match_rnn = UniMatchGRU(input_size, hidden_size)
-        else:
-            raise ValueError('Wrong mode select %s, change to LSTM or GRU' % mode)
+        self.left_match_rnn = UniMatchRNN(mode, input_size, hidden_size)
+        if bidirectional:
+            self.right_match_rnn = UniMatchRNN(mode, input_size, hidden_size)
 
     def flip(self, vin, mask):
         """
