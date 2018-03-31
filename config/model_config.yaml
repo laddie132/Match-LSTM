@@ -15,11 +15,15 @@ model:
 
   embedding_size: 300
   hidden_size: 150  # one-direction
+
   encoder_word_layers: 3
   encoder_char_layers: 1
   encoder_bidirection: True
   encoder_char: False
+
   match_lstm_bidirection: True
+  self_match_lstm_bidirection: True
+  self_match_lstm: True
 
   hidden_mode: GRU # LSTM or GRU
   gated_attention: True

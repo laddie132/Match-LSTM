@@ -61,7 +61,7 @@ class MatchRNNAttention(torch.nn.Module):
         - hidden_size: The number of features in the hidden state Hr
 
     Inputs:
-        Hp(1, batch, input_size): a context word encoded
+        Hpi(batch, input_size): a context word encoded
         Hq(question_len, batch, input_size): whole question encoded
         Hr_last(batch, hidden_size): last lstm hidden output
 
@@ -169,7 +169,6 @@ class MatchRNN(torch.nn.Module):
         - hidden_size: The number of features in the hidden state Hr
         - bidirectional: If ``True``, becomes a bidirectional RNN. Default: ``False``
         - gated_attention: If ``True``, gated attention used, see more on R-NET
-        - enable_cuda: enable GPU accelerate or not
 
     Inputs:
         Hp(context_len, batch, input_size): context encoded
@@ -181,17 +180,16 @@ class MatchRNN(torch.nn.Module):
         Hr(context_len, batch, hidden_size * num_directions): question-aware context representation
     """
 
-    def __init__(self, mode, input_size, hidden_size, bidirectional, gated_attention, enable_cuda):
+    def __init__(self, mode, input_size, hidden_size, bidirectional, gated_attention):
         super(MatchRNN, self).__init__()
         self.bidirectional = bidirectional
         self.num_directions = 1 if bidirectional else 2
-        self.enable_cuda = enable_cuda
 
         self.left_match_rnn = UniMatchRNN(mode, input_size, hidden_size, gated_attention)
         if bidirectional:
             self.right_match_rnn = UniMatchRNN(mode, input_size, hidden_size, gated_attention)
 
-    def flip(self, vin, mask):
+    def masked_flip(vin, mask):
         """
         flip a tensor
         :param vin: input batch with padding values
@@ -207,7 +205,7 @@ class MatchRNN(torch.nn.Module):
 
             idx = list(range(cur_length - 1, -1, -1)) + list(range(cur_length, cur_tensor.shape[0]))
             idx = torch.autograd.Variable(torch.LongTensor(idx))
-            if self.enable_cuda:
+            if vin.is_cuda:
                 idx = idx.cuda()
 
             cur_inv_tensor = cur_tensor.index_select(0, idx)
@@ -221,7 +219,7 @@ class MatchRNN(torch.nn.Module):
         rtn_hidden = left_hidden
 
         if self.bidirectional:
-            Hp_inv = self.flip(Hp, Hp_mask)
+            Hp_inv = masked_flip(Hp, Hp_mask)
             right_hidden = self.right_match_rnn.forward(Hp_inv, Hq, Hq_mask)
             rtn_hidden = torch.cat((left_hidden, right_hidden), dim=2)
 
