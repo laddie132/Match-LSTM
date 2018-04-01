@@ -29,8 +29,7 @@ def main():
     if torch.cuda.is_available() and not enable_cuda:
         logger.warning("CUDA is avaliable, you can enable CUDA in config file")
     elif not torch.cuda.is_available() and enable_cuda:
-        logger.error("CUDA is not abaliable, please unable CUDA in config file")
-        exit(-1)
+        raise ValueError("CUDA is not abaliable, please unable CUDA in config file")
 
     logger.info('reading squad dataset...')
     dataset = SquadDataset(global_config)
@@ -44,10 +43,7 @@ def main():
     # load model weight
     logger.info('loading model weight...')
     model_weight_path = global_config['data']['model_path']
-    is_exist_model_weight = os.path.exists(model_weight_path)
-    if not is_exist_model_weight:
-        logger.info("not found model weight file on '%s'" % model_weight_path)
-        exit(-1)
+    assert os.path.exists(model_weight_path), "not found model weight file on '%s'" % model_weight_path
 
     weight = torch.load(model_weight_path, map_location=lambda storage, loc: storage)
     if enable_cuda:

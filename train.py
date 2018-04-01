@@ -31,8 +31,7 @@ def main():
     if torch.cuda.is_available() and not enable_cuda:
         logger.warning("CUDA is avaliable, you can enable CUDA in config file")
     elif not torch.cuda.is_available() and enable_cuda:
-        logger.error("CUDA is not abaliable, please unable CUDA in config file")
-        exit(-1)
+        raise ValueError("CUDA is not abaliable, please unable CUDA in config file")
 
     logger.info('reading squad dataset...')
     dataset = SquadDataset(global_config)
@@ -46,21 +45,19 @@ def main():
     # optimizer
     optimizer_choose = global_config['train']['optimizer']
     optimizer_lr = global_config['train']['learning_rate']
-    optimizer_beta = (global_config['train']['adamax_beta1'], global_config['train']['adamax_beta2'])
     optimizer_param = filter(lambda p: p.requires_grad, model.parameters())
-    optimizer = optim.Adamax(optimizer_param,
-                             lr=optimizer_lr,
-                             betas=optimizer_beta)
 
-    if optimizer_choose == 'sgd':
+    if optimizer_choose == 'adamax':
+        optimizer = optim.Adamax(optimizer_param)
+    elif optimizer_choose == 'adadelta':
+        optimizer = optim.Adadelta(optimizer_param)
+    elif optimizer_choose == 'adam':
+        optimizer = optim.Adam(optimizer_param)
+    elif optimizer_choose == 'sgd':
         optimizer = optim.SGD(optimizer_param,
                               lr=optimizer_lr)
-    elif optimizer_choose == 'adam':
-        optimizer = optim.Adam(optimizer_param,
-                               lr=optimizer_lr,
-                               betas=optimizer_beta)
-    elif optimizer_choose != "adamax":
-        logger.error('optimizer "%s" in config file not recoginized, use default: adamax' % optimizer_choose)
+    else:
+        raise ValueError('optimizer "%s" in config file not recoginized' % optimizer_choose)
 
     # check if exist model weight
     weight_path = global_config['data']['model_path']

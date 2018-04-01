@@ -112,7 +112,9 @@ class UniMatchRNN(torch.nn.Module):
         self.attention = MatchRNNAttention(input_size, hidden_size)
 
         self.gated_attention = gated_attention
-        self.gated_linear = torch.nn.Linear(2 * input_size, 2 * input_size)
+
+        if self.gated_attention:
+            self.gated_linear = torch.nn.Linear(2 * input_size, 2 * input_size)
 
         self.mode = mode
         if mode == 'LSTM':
@@ -128,18 +130,11 @@ class UniMatchRNN(torch.nn.Module):
 
         # init hidden with the same type of input data
         h_0 = torch.autograd.Variable(Hq.data.new(batch_size, self.hidden_size).zero_())
-
-        if self.mode == 'LSTM':
-            hidden = [(h_0, h_0)]
-        else:
-            hidden = [h_0]
+        hidden = [(h_0, h_0)] if self.mode == 'LSTM' else [h_0]
 
         for t in range(context_len):
             cur_hp = Hp[t, ...]  # (batch, input_size)
-            if self.mode == 'LSTM':
-                attention_input = hidden[t][0]
-            else:
-                attention_input = hidden[t]
+            attention_input = hidden[t][0] if self.mode == 'LSTM' else hidden[t]
 
             alpha = self.attention.forward(cur_hp, Hq, attention_input, Hq_mask)  # (batch, question_len)
             question_alpha = torch.bmm(alpha.unsqueeze(1), Hq.transpose(0, 1)) \
@@ -153,10 +148,7 @@ class UniMatchRNN(torch.nn.Module):
             cur_hidden = self.hidden_cell.forward(cur_z, hidden[t])  # (batch, hidden_size), when lstm output tuple
             hidden.append(cur_hidden)
 
-        if self.mode == 'LSTM':
-            hidden_state = list(map(lambda x: x[0], hidden))
-        else:
-            hidden_state = hidden
+        hidden_state = list(map(lambda x: x[0], hidden)) if self.mode == 'LSTM' else hidden
         result = torch.stack(hidden_state[1:], dim=0)  # (context_len, batch, hidden_size)
         return result
 
@@ -322,19 +314,12 @@ class BoundaryPointer(torch.nn.Module):
             batch_size = Hr.shape[1]
             h_0 = torch.autograd.Variable(Hr.data.new(batch_size, self.hidden_size).zero_())
 
-        if self.mode == 'LSTM':
-            hidden = (h_0, h_0)
-        else:
-            hidden = h_0
+        hidden = (h_0, h_0) if self.mode == 'LSTM' else h_0
         beta_out = []
 
         for t in range(self.answer_len):
-            if self.mode == 'LSTM':
-                attention_input = hidden[0]
-            else:
-                attention_input = hidden
-
-            beta = self.attention.forward(Hr, Hr_mask,attention_input)  # (batch, context_len)
+            attention_input = hidden[0] if self.mode == 'LSTM' else hidden
+            beta = self.attention.forward(Hr, Hr_mask, attention_input)  # (batch, context_len)
             beta_out.append(beta)
 
             context_beta = torch.bmm(beta.unsqueeze(1), Hr.transpose(0, 1)) \
