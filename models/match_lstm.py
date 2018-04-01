@@ -43,6 +43,7 @@ class MatchLSTMModel(torch.nn.Module):
         encoder_word_layers = global_config['model']['encoder_word_layers']
         encoder_char_layers = global_config['model']['encoder_char_layers']
 
+        self.init_ptr_hidden_mode = global_config['model']['init_ptr_hidden']
         hidden_mode = global_config['model']['hidden_mode']
         gated_attention = global_config['model']['gated_attention']
 
@@ -76,11 +77,19 @@ class MatchLSTMModel(torch.nn.Module):
 
         self.pointer_net = BoundaryPointer(mode=hidden_mode,
                                            input_size=match_lstm_out_size,
-                                           hidden_size=hidden_size,
+                                           hidden_size=encode_out_size,    # just to fit init hidden on encoder generate
                                            dropout_p=dropout_p)
 
         # pointer net init hidden generate
-        self.ptr_net_hidden_linear = nn.Linear(match_lstm_out_size, hidden_size)
+        if self.init_ptr_hidden_mode == 'pooling':
+            self.init_ptr_hidden = AttentionPooling(encode_out_size)
+        elif self.init_ptr_hidden_mode == 'linear':
+            self.init_ptr_hidden = nn.Linear(match_lstm_out_size, encode_out_size)
+        elif self.init_ptr_hidden_mode == 'None':
+            pass
+        else:
+            raise ValueError('Wrong init_ptr_hidden mode select %s, change to pooling or linear'
+                             % self.init_ptr_hidden_mode)
 
     def forward(self, context, question):
         # get embedding: (batch, seq_len, embedding_size)
@@ -100,9 +109,15 @@ class MatchLSTMModel(torch.nn.Module):
             qt_aware_ct, qt_aware_last_hidden = self.self_match_rnn.forward(qt_aware_ct, context_new_mask,
                                                                             qt_aware_ct, context_new_mask)
 
+        # pointer net init hidden: (batch, hidden_size)
+        ptr_net_hidden = None
+        if self.init_ptr_hidden_mode == 'pooling':
+            ptr_net_hidden = self.init_ptr_hidden.forward(question_encode, question_new_mask)
+        elif self.init_ptr_hidden_mode == 'linear':
+            ptr_net_hidden = self.init_ptr_hidden.forward(qt_aware_last_hidden)
+            ptr_net_hidden = torch.tanh(ptr_net_hidden)
+
         # pointer net: (answer_len, batch)
-        ptr_net_hidden = self.ptr_net_hidden_linear.forward(qt_aware_last_hidden)
-        ptr_net_hidden = torch.tanh(ptr_net_hidden)
         answer_range = self.pointer_net.forward(qt_aware_ct, context_new_mask, ptr_net_hidden)
 
         return answer_range.transpose(0, 1)

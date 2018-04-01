@@ -3,6 +3,7 @@
 
 __author__ = 'han'
 
+import math
 import h5py
 import torch
 import torch.nn.functional as F
@@ -165,8 +166,8 @@ class MatchRNN(torch.nn.Module):
     Inputs:
         Hp(context_len, batch, input_size): context encoded
         Hq(question_len, batch, input_size): question encoded
-        Hp_length(batch,): each context valued length without padding values
-        Hq_length(batch,): each question valued length without padding values
+        Hp_mask(batch, context_len): each context valued length without padding values
+        Hq_mask(batch, question_len): each question valued length without padding values
 
     Outputs:
         Hr(context_len, batch, hidden_size * num_directions): question-aware context representation
@@ -408,3 +409,45 @@ class MyRNNBase(torch.nn.Module):
 
         return o_unsort, new_mask_unsort
 
+
+class AttentionPooling(torch.nn.Module):
+    """
+    Attnetion-Pooling for pointer net init hidden state generate
+    Args:
+        input_size: The number of expected features in the input x
+
+    Inputs: input, mask
+        - **input** (seq_len, batch, input_size): tensor containing the features
+          of the input sequence.
+        - **mask** (batch, seq_len): tensor show whether a padding index for each element in the batch.
+
+    Outputs: output, output_mask
+        - **output** (batch, input_size): tensor containing the output features
+    """
+    def __init__(self, input_size):
+        super(AttentionPooling, self).__init__()
+
+        self.linear_u = torch.nn.Linear(input_size, input_size)
+        self.linear_v = torch.nn.Linear(input_size, input_size)
+        self.linear_t = torch.nn.Linear(input_size, 1)
+
+        self.vr = torch.nn.Parameter(torch.FloatTensor(1, 1, input_size))    # also to train
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        stdv = 1. / math.sqrt(self.vr.size(1))
+        self.vr.data.uniform_(-stdv, stdv)
+
+    def forward(self, uq, mask):
+        wuq_uq = self.linear_u(uq)
+        wvq_vq = self.linear_v(self.vr)
+
+        q_tanh = F.tanh(wuq_uq + wvq_vq)
+        q_s = self.linear_t(q_tanh)\
+            .squeeze(2)\
+            .transpose(0, 1)  # (batch, seq_len)
+
+        alpha = masked_softmax(q_s, mask, dim=1)    # (batch, seq_len)
+        rq = torch.bmm(alpha.unsqueeze(1), uq.transpose(0, 1))\
+            .squeeze(1)     # (batch, input_size)
+        return rq

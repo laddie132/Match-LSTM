@@ -42,9 +42,7 @@ def main():
     logger.info('loading model weight...')
     model_weight_path = global_config['data']['model_path']
     is_exist_model_weight = os.path.exists(model_weight_path)
-    if not is_exist_model_weight:
-        logger.info("not found model weight file on '%s'" % model_weight_path)
-        exit(-1)
+    assert is_exist_model_weight, "not found model weight file on '%s'" % model_weight_path
 
     weight = torch.load(model_weight_path, map_location=lambda storage, loc: storage)
     model.load_state_dict(weight, strict=False)
