@@ -3,6 +3,12 @@
 
 __author__ = 'han'
 
+import os
+import sys
+
+sys.path.append(os.getcwd())
+
+import argparse
 import torch
 import logging
 from collections import OrderedDict
@@ -14,16 +20,19 @@ logger = logging.getLogger(__name__)
 
 
 def transform(pre_model_path, tar_model_path, cur_model):
-
     pre_weight = torch.load(pre_model_path, map_location=lambda storage, loc: storage)
+    pre_keys = pre_weight.keys()
     pre_value = pre_weight.values()
 
     cur_weight = cur_model.state_dict()
     del cur_weight['embedding.embedding_layer.weight']
     cur_keys = cur_weight.keys()
 
-    new_weight = OrderedDict(zip(cur_keys, pre_value))
+    assert len(pre_keys) == len(cur_keys)
+    logging.info('pre-keys: ' + str(pre_keys))
+    logging.info('cur-keys: ' + str(cur_keys))
 
+    new_weight = OrderedDict(zip(cur_keys, pre_value))
     torch.save(new_weight, tar_model_path)
 
 
@@ -34,11 +43,16 @@ def main(pre_model_path, tar_model_path):
     logger.info('constructing model...')
     model = MatchLSTMModel(global_config)
 
-    logging.info('transforming model...')
+    logging.info("transforming model from '%s' to '%s'..." % (pre_model_path, tar_model_path))
     transform(pre_model_path, tar_model_path, model)
 
     logging.info('finished.')
 
 
 if __name__ == '__main__':
-    main('data/model-bak/match-lstm.pt-epoch17-bak', 'data/match-lstm.pt-epoch17')
+    parser = argparse.ArgumentParser(description="transform a old model weight to the newest network")
+    parser.add_argument('--input', '-i', required=True, nargs=1, dest='pre_weight')
+    parser.add_argument('--output', '-o', required=True, nargs=1, dest='tar_weight')
+
+    args = parser.parse_args()
+    main(args.pre_weight[0], args.tar_weight[0])

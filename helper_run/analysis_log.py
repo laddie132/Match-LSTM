@@ -1,8 +1,13 @@
 # -*- coding: utf-8 -*-
 
+
+import os
+import sys
+import argparse
 import matplotlib.pyplot as plt
 import re
 
+sys.path.append(os.getcwd())
 
 TRAIN_SIZE = 87599
 DEV_SIZE = 10570
@@ -18,7 +23,7 @@ def analysis_log_loss(log_txt):
             continue
 
         epoch.append(int(result[0][0]))
-        loss.append(float(result[0][1])/TRAIN_SIZE)
+        loss.append(float(result[0][1]) / TRAIN_SIZE)
 
     return epoch, loss
 
@@ -37,7 +42,7 @@ def analysis_log_score(log_txt):
         epoch.append(int(result[0][0]))
         score_em.append(float(result[0][1]))
         score_f1.append(float(result[0][2]))
-        loss.append(float(result[0][3])/DEV_SIZE)
+        loss.append(float(result[0][3]) / DEV_SIZE)
 
     return epoch, score_em, score_f1, loss
 
@@ -97,4 +102,9 @@ def main(log_path):
 
 
 if __name__ == '__main__':
-    main('../logs/match-lstm.log')
+    parser = argparse.ArgumentParser(description="analysis log file that model output")
+    parser.add_argument('--log', '-l', required=True, nargs=1, dest='log_path')
+    args = parser.parse_args()
+
+    print("analysising log '%s'" % args.log_path[0])
+    main(args.log_path[0])
