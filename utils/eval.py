@@ -29,7 +29,7 @@ def eval_on_model(model, criterion, batch_data, epoch, enable_cuda, func=None):
 
         # print(func(bat_context[0].data.numpy()))
 
-        tmp_ans_prop = model.forward(bat_context, bat_question)
+        tmp_ans_prop, _ = model.forward(bat_context, bat_question)
         tmp_ans_range = torch.max(tmp_ans_prop, 2)[1]
 
         tmp_size = bat_answer_range.shape[0]

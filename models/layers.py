@@ -132,12 +132,15 @@ class UniMatchRNN(torch.nn.Module):
         # init hidden with the same type of input data
         h_0 = torch.autograd.Variable(Hq.data.new(batch_size, self.hidden_size).zero_())
         hidden = [(h_0, h_0)] if self.mode == 'LSTM' else [h_0]
+        vis_alpha = []
 
         for t in range(context_len):
             cur_hp = Hp[t, ...]  # (batch, input_size)
             attention_input = hidden[t][0] if self.mode == 'LSTM' else hidden[t]
 
             alpha = self.attention.forward(cur_hp, Hq, attention_input, Hq_mask)  # (batch, question_len)
+            vis_alpha.append(alpha)
+
             question_alpha = torch.bmm(alpha.unsqueeze(1), Hq.transpose(0, 1)) \
                 .squeeze(1)  # (batch, input_size)
             cur_z = torch.cat([cur_hp, question_alpha], dim=1)  # (batch, 2*input_size)
@@ -149,9 +152,11 @@ class UniMatchRNN(torch.nn.Module):
             cur_hidden = self.hidden_cell.forward(cur_z, hidden[t])  # (batch, hidden_size), when lstm output tuple
             hidden.append(cur_hidden)
 
+        vis_alpha = torch.stack(vis_alpha, dim=2)   # (batch, question_len, context_len)
+
         hidden_state = list(map(lambda x: x[0], hidden)) if self.mode == 'LSTM' else hidden
         result = torch.stack(hidden_state[1:], dim=0)  # (context_len, batch, hidden_size)
-        return result
+        return result, vis_alpha
 
 
 class MatchRNN(torch.nn.Module):
@@ -208,18 +213,20 @@ class MatchRNN(torch.nn.Module):
         return inv_tensor
 
     def forward(self, Hp, Hp_mask, Hq, Hq_mask):
-        left_hidden = self.left_match_rnn.forward(Hp, Hq, Hq_mask)
+        left_hidden, left_alpha = self.left_match_rnn.forward(Hp, Hq, Hq_mask)
         rtn_hidden = left_hidden
+        rtn_alpha = [left_alpha]
 
         if self.bidirectional:
             Hp_inv = self.masked_flip(Hp, Hp_mask)
-            right_hidden = self.right_match_rnn.forward(Hp_inv, Hq, Hq_mask)
+            right_hidden, right_alpha = self.right_match_rnn.forward(Hp_inv, Hq, Hq_mask)
             rtn_hidden = torch.cat((left_hidden, right_hidden), dim=2)
+            rtn_alpha.append(right_alpha)
 
         real_rtn_hidden = Hp_mask.transpose(0, 1).unsqueeze(2) * rtn_hidden
         last_hidden = rtn_hidden[-1, :]
 
-        return real_rtn_hidden, last_hidden
+        return real_rtn_hidden, last_hidden, rtn_alpha
 
 
 class PointerAttention(torch.nn.Module):

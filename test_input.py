@@ -11,7 +11,7 @@ import numpy as np
 from dataset.squad_dataset import SquadDataset
 from models.match_lstm import MatchLSTMModel
 from utils.load_config import init_logging, read_config
-from utils.utils import to_long_variable, count_parameters
+from utils.utils import to_long_variable, count_parameters, draw_heatmap
 
 init_logging()
 logger = logging.getLogger(__name__)
@@ -65,7 +65,7 @@ def main():
     context_var = to_long_variable(context_id).view(1, -1)
     question_var = to_long_variable(question_id).view(1, -1)
 
-    out_ans_prop = model.forward(context_var, question_var)
+    out_ans_prop, vis_alpha = model.forward(context_var, question_var)
     out_ans_range = torch.max(out_ans_prop, 2)[1].data.numpy()
 
     start = out_ans_range[0][0]
@@ -75,6 +75,10 @@ def main():
     out_answer = dataset.sentence_id2word(out_answer_id)
 
     logging.info('Predict Answer: ' + ' '.join(out_answer))
+
+    # to show on visdom
+    x = vis_alpha[0][0, :, :48].cpu().data.numpy()
+    draw_heatmap(x, context_token[:48], question_token)
 
 
 if __name__ == '__main__':

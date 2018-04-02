@@ -20,6 +20,7 @@ class MatchLSTMModel(torch.nn.Module):
 
     Outputs:
         answer_range: (batch, answer_len, prob)
+        vis_alpha: to show on visdom
     """
 
     def __init__(self, global_config):
@@ -77,7 +78,7 @@ class MatchLSTMModel(torch.nn.Module):
 
         self.pointer_net = BoundaryPointer(mode=hidden_mode,
                                            input_size=match_lstm_out_size,
-                                           hidden_size=encode_out_size,    # just to fit init hidden on encoder generate
+                                           hidden_size=encode_out_size,  # just to fit init hidden on encoder generate
                                            dropout_p=dropout_p)
 
         # pointer net init hidden generate
@@ -101,13 +102,13 @@ class MatchLSTMModel(torch.nn.Module):
         question_encode, question_new_mask = self.encoder.forward(question_vec, question_mask)
 
         # match lstm: (seq_len, batch, hidden_size)
-        qt_aware_ct, qt_aware_last_hidden = self.match_rnn.forward(context_encode, context_new_mask,
-                                                                   question_encode, question_new_mask)
+        qt_aware_ct, qt_aware_last_hidden, viz_alpha = self.match_rnn.forward(context_encode, context_new_mask,
+                                                                              question_encode, question_new_mask)
 
         # self match lstm: (seq_len, batch, hidden_size)
         if self.enable_self_match:
-            qt_aware_ct, qt_aware_last_hidden = self.self_match_rnn.forward(qt_aware_ct, context_new_mask,
-                                                                            qt_aware_ct, context_new_mask)
+            qt_aware_ct, qt_aware_last_hidden, _ = self.self_match_rnn.forward(qt_aware_ct, context_new_mask,
+                                                                               qt_aware_ct, context_new_mask)
 
         # pointer net init hidden: (batch, hidden_size)
         ptr_net_hidden = None
@@ -120,4 +121,4 @@ class MatchLSTMModel(torch.nn.Module):
         # pointer net: (answer_len, batch)
         answer_range = self.pointer_net.forward(qt_aware_ct, context_new_mask, ptr_net_hidden)
 
-        return answer_range.transpose(0, 1)
+        return answer_range.transpose(0, 1), viz_alpha
