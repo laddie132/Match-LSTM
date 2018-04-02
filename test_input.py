@@ -8,12 +8,11 @@ import torch
 import logging
 import nltk
 import numpy as np
-import seaborn as sns
 import matplotlib.pyplot as plt
 from dataset.squad_dataset import SquadDataset
 from models.match_lstm import MatchLSTMModel
 from utils.load_config import init_logging, read_config
-from utils.utils import to_long_variable, count_parameters
+from utils.utils import to_long_variable, count_parameters, draw_heatmap_sea
 
 init_logging()
 logger = logging.getLogger(__name__)
@@ -80,11 +79,11 @@ def main():
 
     # to show on visdom
     x_left = vis_alpha[0][0, :, :48].cpu().data.numpy()
-    x_right = vis_alpha[1][0, :, :48].cpu().data.numpy()
-
-    fig, axes = plt.subplots(1, 1)
-    sns.heatmap(x_left, linewidths=0.05, ax=axes, cmap='Blues', xticklabels=context_token[:48], yticklabels=question_token)
-    plt.show()
+    draw_heatmap_sea(x_left,
+                     xlabels=context_token[:48],
+                     ylabels=question_token,
+                     answer=answer,
+                     save_path='data/test.png')
 
 
 if __name__ == '__main__':

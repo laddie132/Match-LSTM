@@ -8,6 +8,8 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
+
 
 
 def init_hidden(num_layers_directions, batch, hidden_size, enable_cuda):
@@ -255,3 +257,12 @@ def draw_heatmap(x, xlabels, ylabels, x_top=False):
     for t in ax.yaxis.get_major_ticks():
         t.tick1On = False
         t.tick2On = False
+
+
+def draw_heatmap_sea(x, xlabels, ylabels, answer, save_path):
+    fig, ax = plt.subplots()
+    plt.subplots_adjust(bottom=0.45)
+    plt.title('Answer: ' + answer)
+    sns.heatmap(x, linewidths=0.02, ax=ax, cmap='Blues', xticklabels=xlabels, yticklabels=ylabels)
+    fig.set_size_inches(11, 3)
+    fig.savefig(save_path)
