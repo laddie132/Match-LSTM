@@ -255,4 +255,3 @@ def draw_heatmap(x, xlabels, ylabels, x_top=False):
     for t in ax.yaxis.get_major_ticks():
         t.tick1On = False
         t.tick2On = False
-    plt.show()

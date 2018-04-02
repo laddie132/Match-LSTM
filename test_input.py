@@ -8,10 +8,12 @@ import torch
 import logging
 import nltk
 import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
 from dataset.squad_dataset import SquadDataset
 from models.match_lstm import MatchLSTMModel
 from utils.load_config import init_logging, read_config
-from utils.utils import to_long_variable, count_parameters, draw_heatmap
+from utils.utils import to_long_variable, count_parameters
 
 init_logging()
 logger = logging.getLogger(__name__)
@@ -45,7 +47,7 @@ def main():
     assert is_exist_model_weight, "not found model weight file on '%s'" % model_weight_path
 
     weight = torch.load(model_weight_path, map_location=lambda storage, loc: storage)
-    model.load_state_dict(weight, strict=False)
+    # model.load_state_dict(weight, strict=False)
 
     # manual input qa
     context = "In 1870, Tesla moved to Karlovac, to attend school at the Higher Real Gymnasium, where he was " \
@@ -77,8 +79,12 @@ def main():
     logging.info('Predict Answer: ' + ' '.join(out_answer))
 
     # to show on visdom
-    x = vis_alpha[0][0, :, :48].cpu().data.numpy()
-    draw_heatmap(x, context_token[:48], question_token)
+    x_left = vis_alpha[0][0, :, :48].cpu().data.numpy()
+    x_right = vis_alpha[1][0, :, :48].cpu().data.numpy()
+
+    fig, axes = plt.subplots(1, 1)
+    sns.heatmap(x_left, linewidths=0.05, ax=axes, cmap='Blues', xticklabels=context_token[:48], yticklabels=question_token)
+    plt.show()
 
 
 if __name__ == '__main__':
