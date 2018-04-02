@@ -11,7 +11,7 @@ import h5py
 import logging
 import numpy as np
 from functools import reduce
-from utils.utils import pad_sequences
+from utils.functions import pad_sequences
 
 logger = logging.getLogger(__name__)
 

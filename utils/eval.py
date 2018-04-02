@@ -5,7 +5,7 @@ __author__ = 'han'
 
 import torch
 import logging
-from utils.utils import to_variable
+from utils.functions import to_variable
 from dataset.preprocess_data import PreprocessData
 
 logger = logging.getLogger(__name__)

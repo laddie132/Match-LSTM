@@ -10,7 +10,7 @@ import torch
 import torch.utils.data
 import logging
 from dataset.preprocess_data import PreprocessData
-from utils.utils import *
+from utils.functions import *
 
 logger = logging.getLogger(__name__)
 

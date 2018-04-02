@@ -9,7 +9,7 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 from dataset.preprocess_data import PreprocessData
-from utils.utils import masked_softmax, generate_mask, compute_mask
+from utils.functions import masked_softmax, generate_mask, compute_mask
 
 
 class GloveEmbedding(torch.nn.Module):

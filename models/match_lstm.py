@@ -76,16 +76,17 @@ class MatchLSTMModel(torch.nn.Module):
                                            gated_attention=gated_attention)
             match_lstm_out_size = hidden_size * self_match_lstm_direction_num
 
+        ptr_hidden_size = encode_out_size if self.init_ptr_hidden_mode == 'pooling' else hidden_size
         self.pointer_net = BoundaryPointer(mode=hidden_mode,
                                            input_size=match_lstm_out_size,
-                                           hidden_size=encode_out_size,  # just to fit init hidden on encoder generate
+                                           hidden_size=ptr_hidden_size,  # just to fit init hidden on encoder generate
                                            dropout_p=dropout_p)
 
         # pointer net init hidden generate
         if self.init_ptr_hidden_mode == 'pooling':
-            self.init_ptr_hidden = AttentionPooling(encode_out_size)
+            self.init_ptr_hidden = AttentionPooling(ptr_hidden_size)
         elif self.init_ptr_hidden_mode == 'linear':
-            self.init_ptr_hidden = nn.Linear(match_lstm_out_size, encode_out_size)
+            self.init_ptr_hidden = nn.Linear(match_lstm_out_size, ptr_hidden_size)
         elif self.init_ptr_hidden_mode == 'None':
             pass
         else:

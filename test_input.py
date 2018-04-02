@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from dataset.squad_dataset import SquadDataset
 from models.match_lstm import MatchLSTMModel
 from utils.load_config import init_logging, read_config
-from utils.utils import to_long_variable, count_parameters, draw_heatmap_sea
+from utils.functions import to_long_variable, count_parameters, draw_heatmap_sea
 
 init_logging()
 logger = logging.getLogger(__name__)
