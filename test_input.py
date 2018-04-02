@@ -46,7 +46,7 @@ def main():
     assert is_exist_model_weight, "not found model weight file on '%s'" % model_weight_path
 
     weight = torch.load(model_weight_path, map_location=lambda storage, loc: storage)
-    # model.load_state_dict(weight, strict=False)
+    model.load_state_dict(weight, strict=False)
 
     # manual input qa
     context = "In 1870, Tesla moved to Karlovac, to attend school at the Higher Real Gymnasium, where he was " \
