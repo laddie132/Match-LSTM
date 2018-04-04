@@ -54,11 +54,17 @@ def main():
              "as it was a school within the Austro-Hungarian Military Frontier. Tesla was able to perform integral " \
              "calculus in his head, which prompted his teachers to believe that he was cheating. He finished a " \
              "four-year term in three years, graduating in 1873.:33 "
-    question = "What language were classes held in at Tesla's school?"
-    answer = "German"
+    question1 = "What language were classes held in at Tesla's school?"
+    answer1 = "German"
+
+    question2 = "Who was Tesla influenced by while in school?"
+    answer2 = "Martin Sekuli\u0107"
+
+    question3 = "Why did Tesla go to Karlovac?"
+    answer3 = ["attend school at the Higher Real Gymnasium", 'to attend school']
 
     context_token = nltk.word_tokenize(context)
-    question_token = nltk.word_tokenize(question)
+    question_token = nltk.word_tokenize(question3)
 
     context_id = dataset.sentence_word2id(context_token)
     question_id = dataset.sentence_word2id(question_token)
@@ -82,7 +88,7 @@ def main():
     draw_heatmap_sea(x_left,
                      xlabels=context_token[:48],
                      ylabels=question_token,
-                     answer=answer,
+                     answer=answer3[0],
                      save_path='data/test.png')
 
 

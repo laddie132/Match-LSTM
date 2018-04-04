@@ -41,6 +41,8 @@ class MatchLSTMModel(torch.nn.Module):
         self_match_lstm_direction_num = 2 if self_match_lstm_bidirection else 1
         self.enable_self_match = global_config['model']['self_match_lstm']
 
+        self.enable_birnn_after_self = global_config['model']['birnn_after_self']
+
         encoder_word_layers = global_config['model']['encoder_word_layers']
         encoder_char_layers = global_config['model']['encoder_char_layers']
 
@@ -65,7 +67,8 @@ class MatchLSTMModel(torch.nn.Module):
                                   input_size=encode_out_size,
                                   hidden_size=hidden_size,
                                   bidirectional=match_lstm_bidirection,
-                                  gated_attention=gated_attention)
+                                  gated_attention=gated_attention,
+                                  dropout_p=dropout_p)
         match_lstm_out_size = hidden_size * match_lstm_direction_num
 
         if self.enable_self_match:
@@ -73,8 +76,18 @@ class MatchLSTMModel(torch.nn.Module):
                                            input_size=match_lstm_out_size,
                                            hidden_size=hidden_size,
                                            bidirectional=self_match_lstm_bidirection,
-                                           gated_attention=gated_attention)
+                                           gated_attention=gated_attention,
+                                           dropout_p=dropout_p)
             match_lstm_out_size = hidden_size * self_match_lstm_direction_num
+
+        if self.enable_birnn_after_self:
+            self.birnn_after_self = MyRNNBase(mode=hidden_mode,
+                                              input_size=match_lstm_out_size,
+                                              hidden_size=hidden_size,
+                                              num_layers=1,
+                                              bidirectional=True,
+                                              dropout_p=dropout_p)
+            match_lstm_out_size = hidden_size * 2
 
         ptr_hidden_size = encode_out_size if self.init_ptr_hidden_mode == 'pooling' else hidden_size
         self.pointer_net = BoundaryPointer(mode=hidden_mode,
@@ -94,7 +107,7 @@ class MatchLSTMModel(torch.nn.Module):
                              % self.init_ptr_hidden_mode)
 
     def forward(self, context, question):
-        # get embedding: (batch, seq_len, embedding_size)
+        # get embedding: (seq_len, batch, embedding_size)
         context_vec, context_mask = self.embedding.forward(context)
         question_vec, question_mask = self.embedding.forward(question)
 
@@ -110,6 +123,10 @@ class MatchLSTMModel(torch.nn.Module):
         if self.enable_self_match:
             qt_aware_ct, qt_aware_last_hidden, _ = self.self_match_rnn.forward(qt_aware_ct, context_new_mask,
                                                                                qt_aware_ct, context_new_mask)
+
+        # birnn after self match: (seq_len, batch, hidden_size)
+        if self.enable_birnn_after_self:
+            qt_aware_ct, _ = self.birnn_after_self.forward(qt_aware_ct, context_new_mask)
 
         # pointer net init hidden: (batch, hidden_size)
         ptr_net_hidden = None

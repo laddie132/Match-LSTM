@@ -21,11 +21,11 @@ class GloveEmbedding(torch.nn.Module):
     Inputs:
         **input** (batch, seq_len): sequence with word index
     Outputs
-        **output** (batch, seq_len, embedding_size): tensor that change word index to word embeddings
+        **output** (seq_len, batch, embedding_size): tensor that change word index to word embeddings
         **mask** (batch, seq_len): tensor that show which index is padding
     """
 
-    def __init__(self, dataset_h5_path, dropout_p=0.):
+    def __init__(self, dataset_h5_path):
         super(GloveEmbedding, self).__init__()
         self.dataset_h5_path = dataset_h5_path
         self.n_embeddings, self.len_embedding, self.weights = self.load_glove_hdf5()
@@ -33,8 +33,6 @@ class GloveEmbedding(torch.nn.Module):
         self.embedding_layer = torch.nn.Embedding(num_embeddings=self.n_embeddings, embedding_dim=self.len_embedding)
         self.embedding_layer.weight = torch.nn.Parameter(self.weights)
         self.embedding_layer.weight.requires_grad = False
-
-        self.dropout = torch.nn.Dropout(p=dropout_p)
 
     def load_glove_hdf5(self):
         with h5py.File(self.dataset_h5_path, 'r') as f:
@@ -49,7 +47,7 @@ class GloveEmbedding(torch.nn.Module):
         mask = compute_mask(x, PreprocessData.padding_idx)
 
         tmp_emb = self.embedding_layer.forward(x)
-        out_emb = self.dropout(tmp_emb)
+        out_emb = tmp_emb.transpose(0, 1)
 
         return out_emb, mask
 
@@ -178,7 +176,7 @@ class MatchRNN(torch.nn.Module):
         Hr(context_len, batch, hidden_size * num_directions): question-aware context representation
     """
 
-    def __init__(self, mode, input_size, hidden_size, bidirectional, gated_attention):
+    def __init__(self, mode, input_size, hidden_size, bidirectional, gated_attention, dropout_p):
         super(MatchRNN, self).__init__()
         self.bidirectional = bidirectional
         self.num_directions = 1 if bidirectional else 2
@@ -186,6 +184,8 @@ class MatchRNN(torch.nn.Module):
         self.left_match_rnn = UniMatchRNN(mode, input_size, hidden_size, gated_attention)
         if bidirectional:
             self.right_match_rnn = UniMatchRNN(mode, input_size, hidden_size, gated_attention)
+
+        self.dropout = torch.nn.Dropout(p=dropout_p)
 
     def masked_flip(self, vin, mask):
         """
@@ -213,6 +213,9 @@ class MatchRNN(torch.nn.Module):
         return inv_tensor
 
     def forward(self, Hp, Hp_mask, Hq, Hq_mask):
+        Hp = self.dropout(Hp)
+        Hq = self.dropout(Hq)
+
         left_hidden, left_alpha = self.left_match_rnn.forward(Hp, Hq, Hq_mask)
         rtn_hidden = left_hidden
         rtn_alpha = [left_alpha]
@@ -354,7 +357,7 @@ class MyRNNBase(torch.nn.Module):
         dropout_p: dropout probability to input data, and also dropout along hidden layers
 
     Inputs: input, mask
-        - **input** (batch, seq_len, input_size): tensor containing the features
+        - **input** (seq_len, batch, input_size): tensor containing the features
           of the input sequence.
         - **mask** (batch, seq_len): tensor show whether a padding index for each element in the batch.
 
@@ -399,8 +402,7 @@ class MyRNNBase(torch.nn.Module):
             idx_sort = idx_sort.cuda()
             idx_unsort = idx_unsort.cuda()
 
-        v_sort = v.index_select(0, idx_sort)
-        v_sort = v_sort.transpose(0, 1)
+        v_sort = v.index_select(1, idx_sort)
 
         v_pack = torch.nn.utils.rnn.pack_padded_sequence(v_sort, lengths_sort)
         v_dropout = self.dropout.forward(v_pack.data)

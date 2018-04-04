@@ -14,7 +14,7 @@ model:
   dropout_p: 0.4
 
   embedding_size: 300
-  hidden_size: 75  # one-direction
+  hidden_size: 45  # one-direction
 
   encoder_word_layers: 3
   encoder_char_layers: 1
@@ -25,6 +25,7 @@ model:
   self_match_lstm_bidirection: True
   self_match_lstm: True
 
+  birnn_after_self: True
   init_ptr_hidden: pooling # pooling, linear, None
 
   hidden_mode: GRU # LSTM or GRU

@@ -25,6 +25,7 @@ model:
   self_match_lstm_bidirection: True
   self_match_lstm: False
 
+  birnn_after_self: False
   init_ptr_hidden: linear # pooling, linear, None
 
   hidden_mode: LSTM # LSTM or GRU
