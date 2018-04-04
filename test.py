@@ -38,7 +38,7 @@ def main():
     model = MatchLSTMModel(global_config)
     if enable_cuda:
         model = model.cuda()
-    model.eval()        # let training = False, make sure right dropout
+    model.eval()  # let training = False, make sure right dropout
 
     # load model weight
     logger.info('loading model weight...')
@@ -54,16 +54,16 @@ def main():
     logger.info('forwarding...')
 
     batch_size = global_config['test']['batch_size']
-    batch_dev_data = dataset.get_dataloader_dev(batch_size)
+    # batch_dev_data = dataset.get_dataloader_dev(batch_size)
+    batch_dev_data = list(dataset.get_batch_dev(batch_size))
 
     criterion = MyNLLLoss()
-    score_em, score_f1 = eval_on_model(model=model,
-                                       criterion=criterion,
-                                       batch_data=batch_dev_data,
-                                       epoch=None,
-                                       enable_cuda=enable_cuda,
-                                       func=dataset.sentence_id2word)
-    logger.info("test: ave_score_em=%.2f, ave_score_f1=%.2f" % (score_em, score_f1))
+    score_em, score_f1, sum_loss = eval_on_model(model=model,
+                                                 criterion=criterion,
+                                                 batch_data=batch_dev_data,
+                                                 epoch=None,
+                                                 enable_cuda=enable_cuda)
+    logger.info("test: ave_score_em=%.2f, ave_score_f1=%.2f, sum_loss=%.5f" % (score_em, score_f1, sum_loss))
     logging.info('finished.')
 
 

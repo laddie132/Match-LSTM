@@ -81,11 +81,10 @@ class SquadDataset:
                                                  shuffle=True)
         return dataloader
 
-    def get_batch_train(self, batch_size, enable_cuda=False):
+    def get_batch_train(self, batch_size):
         """
         - notice: replaced by dataloader
         a train data batch
-        :param enable_cuda:
         :param batch_size:
         :return:
         """
@@ -93,20 +92,17 @@ class SquadDataset:
         data_size = len(train_data['context'])
         i = 0
         while i < data_size:
-            batch = {}
             j = min(i + batch_size, data_size)
-            batch['context'] = to_long_variable(train_data['context'][i:j], enable_cuda)
-            batch['question'] = to_long_variable(train_data['question'][i:j], enable_cuda)
-            batch['answer_range'] = to_long_variable(train_data['answer_range'][i:j], enable_cuda)
-
+            batch = (to_long_tensor(train_data['context'][i:j]),
+                     to_long_tensor(train_data['question'][i:j]),
+                     to_long_tensor(train_data['answer_range'][i:j]))
             i = j
             yield batch
 
-    def get_batch_dev(self, batch_size, enable_cuda=False):
+    def get_batch_dev(self, batch_size):
         """
         - notice: replaced by dataloader
         development data batch
-        :param enable_cuda:
         :param batch_size:
         :return: generator [packed squences]
         """
@@ -114,11 +110,10 @@ class SquadDataset:
         data_size = len(dev_data['context'])
         i = 0
         while i < data_size:
-            batch = {}
             j = min(i + batch_size, data_size)
-            batch['context'] = to_long_variable(dev_data['context'][i:j], enable_cuda)
-            batch['question'] = to_long_variable(dev_data['question'][i:j], enable_cuda)
-            batch['answer_range'] = to_long_variable(dev_data['answer_range'][i:j], enable_cuda)
+            batch = (to_long_tensor(dev_data['context'][i:j]),
+                     to_long_tensor(dev_data['question'][i:j]),
+                     to_long_tensor(dev_data['answer_range'][i:j]))
 
             i = j
             yield batch

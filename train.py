@@ -74,8 +74,10 @@ def main():
     train_batch_size = global_config['train']['batch_size']
     valid_batch_size = global_config['train']['valid_batch_size']
 
-    batch_train_loader = dataset.get_dataloader_train(train_batch_size)
-    batch_dev_loader = dataset.get_dataloader_dev(valid_batch_size)
+    # batch_train_data = dataset.get_dataloader_train(train_batch_size)
+    # batch_dev_data = dataset.get_dataloader_dev(valid_batch_size)
+    batch_train_data = list(dataset.get_batch_train(train_batch_size))
+    batch_dev_data = list(dataset.get_batch_dev(valid_batch_size))
 
     clip_grad_max = global_config['train']['clip_grad_norm']
 
@@ -87,7 +89,7 @@ def main():
         sum_loss = train_on_model(model=model,
                                   criterion=criterion,
                                   optimizer=optimizer,
-                                  batch_data=batch_train_loader,
+                                  batch_data=batch_train_data,
                                   epoch=epoch,
                                   clip_grad_max=clip_grad_max,
                                   enable_cuda=enable_cuda)
@@ -97,7 +99,7 @@ def main():
         model.eval()  # let training = False, make sure right dropout
         valid_score_em, valid_score_f1, valid_loss = eval_on_model(model=model,
                                                                    criterion=criterion,
-                                                                   batch_data=batch_dev_loader,
+                                                                   batch_data=batch_dev_data,
                                                                    epoch=epoch,
                                                                    enable_cuda=enable_cuda)
         logger.info("epoch=%d, ave_score_em=%.2f, ave_score_f1=%.2f, sum_loss=%.5f" %
@@ -148,6 +150,13 @@ def train_on_model(model, criterion, optimizer, batch_data, epoch, clip_grad_max
         sum_loss += batch_loss * bat_answer_range.shape[0]
 
         logger.info('epoch=%d, batch=%d/%d, loss=%.5f' % (epoch, i, batch_cnt, batch_loss))
+
+        # manual release memory
+        del bat_context
+        del bat_question
+        del bat_answer_range
+        if enable_cuda:
+            torch.cuda.empty_cache()
 
     return sum_loss
 

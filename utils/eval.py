@@ -11,11 +11,14 @@ from dataset.preprocess_data import PreprocessData
 logger = logging.getLogger(__name__)
 
 
-def eval_on_model(model, criterion, batch_data, epoch, enable_cuda, func=None):
+def eval_on_model(model, criterion, batch_data, epoch, enable_cuda):
     """
     evaluate on a specific trained model
     :param model: model with weight loaded
+    :param criterion:
     :param batch_data: test data with batches
+    :param epoch:
+    :param enable_cuda:
     :return: (em, f1, sum_loss)
     """
     batch_cnt = len(batch_data)
@@ -26,8 +29,6 @@ def eval_on_model(model, criterion, batch_data, epoch, enable_cuda, func=None):
 
     for bnum, batch in enumerate(batch_data):
         bat_context, bat_question, bat_answer_range = list(map(lambda x: to_variable(x, enable_cuda), list(batch)))
-
-        # print(func(bat_context[0].data.numpy()))
 
         tmp_ans_prop, _ = model.forward(bat_context, bat_question)
         tmp_ans_range = torch.max(tmp_ans_prop, 2)[1]
@@ -52,6 +53,13 @@ def eval_on_model(model, criterion, batch_data, epoch, enable_cuda, func=None):
         else:
             logger.info('epoch=%d, batch=%d/%d, cur_score_em=%.2f, cur_score_f1=%.2f, batch_loss=%.5f' %
                         (epoch, bnum, batch_cnt, num_em * 1. / dev_data_size, score_f1 / dev_data_size, batch_loss))
+
+        # manual release memory
+        del bat_context
+        del bat_question
+        del bat_answer_range
+        if enable_cuda:
+            torch.cuda.empty_cache()
 
     score_em = num_em * 1. / dev_data_size
     score_f1 /= dev_data_size
