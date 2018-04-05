@@ -6,6 +6,7 @@ __author__ = 'han'
 import torch
 import torch.nn as nn
 from models.layers import *
+from utils.functions import answer_search
 
 
 class MatchLSTMModel(torch.nn.Module):
@@ -19,7 +20,7 @@ class MatchLSTMModel(torch.nn.Module):
         question: (batch, seq_len)
 
     Outputs:
-        answer_range: (batch, answer_len, prob)
+        answer_range: (batch, answer_len, context_len)
         vis_alpha: to show on visdom
     """
 
@@ -49,9 +50,9 @@ class MatchLSTMModel(torch.nn.Module):
         self.init_ptr_hidden_mode = global_config['model']['init_ptr_hidden']
         hidden_mode = global_config['model']['hidden_mode']
         gated_attention = global_config['model']['gated_attention']
+        self.enable_search = global_config['model']['answer_search']
 
         dropout_p = global_config['model']['dropout_p']
-        self.dropout = torch.nn.Dropout(p=dropout_p)
 
         # construct model
         self.embedding = GloveEmbedding(dataset_h5_path=global_config['data']['dataset_h5'])
@@ -136,7 +137,14 @@ class MatchLSTMModel(torch.nn.Module):
             ptr_net_hidden = self.init_ptr_hidden.forward(qt_aware_last_hidden)
             ptr_net_hidden = torch.tanh(ptr_net_hidden)
 
-        # pointer net: (answer_len, batch)
-        answer_range = self.pointer_net.forward(qt_aware_ct, context_new_mask, ptr_net_hidden)
+        # pointer net: (answer_len, batch, context_len)
+        ans_range_prop = self.pointer_net.forward(qt_aware_ct, context_new_mask, ptr_net_hidden)
+        ans_range_prop = ans_range_prop.transpose(0, 1)
 
-        return answer_range.transpose(0, 1), viz_alpha
+        # answer range
+        if self.enable_search:
+            ans_range = answer_search(ans_range_prop, context_new_mask)
+        else:
+            ans_range = torch.max(ans_range_prop, 2)[1]
+
+        return ans_range_prop, ans_range, viz_alpha

@@ -239,3 +239,46 @@ def draw_heatmap_sea(x, xlabels, ylabels, answer, save_path):
     sns.heatmap(x, linewidths=0.02, ax=ax, cmap='Blues', xticklabels=xlabels, yticklabels=ylabels)
     fig.set_size_inches(11, 3)
     fig.savefig(save_path)
+
+
+def answer_search(answer_prop, mask, max_tokens=15):
+    """
+    global search best answer for model predict
+    :param answer_prop: (batch, answer_len, context_len)
+    :return:
+    """
+    batch_size = answer_prop.shape[0]
+    context_len = answer_prop.shape[2]
+
+    # get min length
+    lengths = mask.data.eq(1).long().sum(1).squeeze()
+    min_length, _ = torch.min(lengths, 0)
+    min_length = min_length[0]
+
+    # max move steps
+    max_move = max_tokens + context_len - min_length
+    max_move = min(context_len, max_move)
+
+    ans_s_p = answer_prop[:, 0, :]
+    ans_e_p = answer_prop[:, 1, :]
+    b_zero = torch.autograd.Variable(answer_prop.data.new(batch_size, 1).zero_())
+
+    # each step, move ans-start-prop matrix to right with one element
+    ans_s_e_p_lst = []
+    for i in range(max_move):
+        tmp_ans_s_e_p = ans_s_p * ans_e_p
+        ans_s_e_p_lst.append(tmp_ans_s_e_p)
+
+        ans_s_p = ans_s_p[:, :(context_len-1)]
+        ans_s_p = torch.cat((b_zero, ans_s_p), dim=1)
+    ans_s_e_p = torch.stack(ans_s_e_p_lst, dim=2)
+
+    # get the best end position, and move steps
+    max_prop1, max_prop_idx1 = torch.max(ans_s_e_p, 1)
+    max_prop2, max_prop_idx2 = torch.max(max_prop1, 1)
+
+    ans_e = max_prop_idx1[:, max_prop_idx2].diag()      # notice that only diag element valid
+    ans_s = ans_e - max_prop_idx2
+
+    ans_range = torch.stack((ans_s, ans_e), dim=1)
+    return ans_range

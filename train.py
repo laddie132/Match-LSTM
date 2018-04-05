@@ -14,7 +14,6 @@ from utils.load_config import init_logging, read_config
 from utils.functions import to_variable
 from utils.eval import eval_on_model
 
-
 init_logging()
 logger = logging.getLogger(__name__)
 
@@ -136,13 +135,13 @@ def train_on_model(model, criterion, optimizer, batch_data, epoch, clip_grad_max
 
         # forward
         bat_context, bat_question, bat_answer_range = list(map(lambda x: to_variable(x, enable_cuda), list(batch)))
-        pred_answer_range, _ = model.forward(bat_context, bat_question)
+        ans_range_prop, _, _ = model.forward(bat_context, bat_question)
 
         # get loss
-        loss = criterion.forward(pred_answer_range, bat_answer_range)
+        loss = criterion.forward(ans_range_prop, bat_answer_range)
         loss.backward()
 
-        torch.nn.utils.clip_grad_norm(model.parameters(), clip_grad_max)        # fix gradient explosion
+        torch.nn.utils.clip_grad_norm(model.parameters(), clip_grad_max)  # fix gradient explosion
         optimizer.step()  # update parameters
 
         # logging

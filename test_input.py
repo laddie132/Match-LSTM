@@ -72,8 +72,8 @@ def main():
     context_var = to_long_variable(context_id).view(1, -1)
     question_var = to_long_variable(question_id).view(1, -1)
 
-    out_ans_prop, vis_alpha = model.forward(context_var, question_var)
-    out_ans_range = torch.max(out_ans_prop, 2)[1].data.numpy()
+    out_ans_prop, out_ans_range, vis_alpha = model.forward(context_var, question_var)
+    out_ans_range = out_ans_range.cpu().data.numpy()
 
     start = out_ans_range[0][0]
     end = out_ans_range[0][1] + 1

@@ -27,6 +27,7 @@ model:
 
   birnn_after_self: True
   init_ptr_hidden: pooling # pooling, linear, None
+  answer_search: True
 
   hidden_mode: GRU # LSTM or GRU
   gated_attention: True

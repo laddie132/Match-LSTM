@@ -30,8 +30,7 @@ def eval_on_model(model, criterion, batch_data, epoch, enable_cuda):
     for bnum, batch in enumerate(batch_data):
         bat_context, bat_question, bat_answer_range = list(map(lambda x: to_variable(x, enable_cuda), list(batch)))
 
-        tmp_ans_prop, _ = model.forward(bat_context, bat_question)
-        tmp_ans_range = torch.max(tmp_ans_prop, 2)[1]
+        tmp_ans_prop, tmp_ans_range, _ = model.forward(bat_context, bat_question)
 
         tmp_size = bat_answer_range.shape[0]
         dev_data_size += tmp_size
