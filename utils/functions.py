@@ -4,12 +4,10 @@
 __author__ = 'han'
 
 import torch
-import torch.nn.functional as F
 from torch.autograd import Variable
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
-
 
 
 def init_hidden(num_layers_directions, batch, hidden_size, enable_cuda):
@@ -161,11 +159,23 @@ def count_parameters(model):
 
 
 def compute_mask(v, padding_idx=0):
+    """
+    compute mask on given tensor v
+    :param v:
+    :param padding_idx:
+    :return:
+    """
     mask = torch.ne(v, padding_idx).float()
     return mask
 
 
 def generate_mask(batch_length, enable_cuda=False):
+    """
+    generate mask with given length of each element in batch
+    :param batch_length:
+    :param enable_cuda:
+    :return:
+    """
     sum_one = np.sum(np.array(batch_length))
 
     one = Variable(torch.ones(int(sum_one)))
@@ -179,9 +189,13 @@ def generate_mask(batch_length, enable_cuda=False):
 
 
 def masked_softmax(x, m=None, dim=-1):
-    '''
-    Softmax with mask (optional)
-    '''
+    """
+    Softmax with mask
+    :param x:
+    :param m:
+    :param dim:
+    :return:
+    """
     if m is not None:
         m = m.float()
         x = x * m
@@ -193,6 +207,14 @@ def masked_softmax(x, m=None, dim=-1):
 
 
 def draw_heatmap(x, xlabels, ylabels, x_top=False):
+    """
+    draw matrix heatmap with matplotlib
+    :param x:
+    :param xlabels:
+    :param ylabels:
+    :param x_top:
+    :return:
+    """
     # Plot it out
     fig, ax = plt.subplots()
     heatmap = ax.pcolor(x, cmap=plt.cm.Blues, alpha=0.8)
@@ -232,12 +254,24 @@ def draw_heatmap(x, xlabels, ylabels, x_top=False):
         t.tick2On = False
 
 
-def draw_heatmap_sea(x, xlabels, ylabels, answer, save_path):
+def draw_heatmap_sea(x, xlabels, ylabels, answer, save_path, inches=(11, 3), bottom=0.45, linewidths=0.2):
+    """
+    draw matrix heatmap with seaborn
+    :param x:
+    :param xlabels:
+    :param ylabels:
+    :param answer:
+    :param save_path:
+    :param inches:
+    :param bottom:
+    :param linewidths:
+    :return:
+    """
     fig, ax = plt.subplots()
-    plt.subplots_adjust(bottom=0.45)
+    plt.subplots_adjust(bottom=bottom)
     plt.title('Answer: ' + answer)
-    sns.heatmap(x, linewidths=0.02, ax=ax, cmap='Blues', xticklabels=xlabels, yticklabels=ylabels)
-    fig.set_size_inches(11, 3)
+    sns.heatmap(x, linewidths=linewidths, ax=ax, cmap='Blues', xticklabels=xlabels, yticklabels=ylabels)
+    fig.set_size_inches(inches)
     fig.savefig(save_path)
 
 
@@ -269,7 +303,7 @@ def answer_search(answer_prop, mask, max_tokens=15):
         tmp_ans_s_e_p = ans_s_p * ans_e_p
         ans_s_e_p_lst.append(tmp_ans_s_e_p)
 
-        ans_s_p = ans_s_p[:, :(context_len-1)]
+        ans_s_p = ans_s_p[:, :(context_len - 1)]
         ans_s_p = torch.cat((b_zero, ans_s_p), dim=1)
     ans_s_e_p = torch.stack(ans_s_e_p_lst, dim=2)
 
@@ -277,8 +311,23 @@ def answer_search(answer_prop, mask, max_tokens=15):
     max_prop1, max_prop_idx1 = torch.max(ans_s_e_p, 1)
     max_prop2, max_prop_idx2 = torch.max(max_prop1, 1)
 
-    ans_e = max_prop_idx1[:, max_prop_idx2].diag()      # notice that only diag element valid
+    ans_e = max_prop_idx1[:, max_prop_idx2].diag()  # notice that only diag element valid
     ans_s = ans_e - max_prop_idx2
 
     ans_range = torch.stack((ans_s, ans_e), dim=1)
     return ans_range
+
+
+def flip(tensor, flip_dim=0):
+    """
+    flip a tensor on specific dim
+    :param tensor:
+    :param flip_dim:
+    :return:
+    """
+    idx = [i for i in range(tensor.size(flip_dim) - 1, -1, -1)]
+    idx = torch.autograd.Variable(torch.LongTensor(idx))
+    if tensor.is_cuda:
+        idx = idx.cuda()
+    inverted_tensor = tensor.index_select(flip_dim, idx)
+    return inverted_tensor

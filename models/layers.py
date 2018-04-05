@@ -101,6 +101,7 @@ class UniMatchRNN(torch.nn.Module):
 
     Outputs:
         Hr(context_len, batch, hidden_size): question-aware context representation
+        alpha(batch, question_len, context_len): used for visual show
     """
 
     def __init__(self, mode, input_size, hidden_size, gated_attention=False):
@@ -218,13 +219,13 @@ class MatchRNN(torch.nn.Module):
 
         left_hidden, left_alpha = self.left_match_rnn.forward(Hp, Hq, Hq_mask)
         rtn_hidden = left_hidden
-        rtn_alpha = [left_alpha]
+        rtn_alpha = {'left': left_alpha}
 
         if self.bidirectional:
             Hp_inv = self.masked_flip(Hp, Hp_mask)
             right_hidden, right_alpha = self.right_match_rnn.forward(Hp_inv, Hq, Hq_mask)
             rtn_hidden = torch.cat((left_hidden, right_hidden), dim=2)
-            rtn_alpha.append(right_alpha)
+            rtn_alpha['right'] = right_alpha
 
         real_rtn_hidden = Hp_mask.transpose(0, 1).unsqueeze(2) * rtn_hidden
         last_hidden = rtn_hidden[-1, :]

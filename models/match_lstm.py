@@ -117,13 +117,15 @@ class MatchLSTMModel(torch.nn.Module):
         question_encode, question_new_mask = self.encoder.forward(question_vec, question_mask)
 
         # match lstm: (seq_len, batch, hidden_size)
-        qt_aware_ct, qt_aware_last_hidden, viz_alpha = self.match_rnn.forward(context_encode, context_new_mask,
-                                                                              question_encode, question_new_mask)
+        qt_aware_ct, qt_aware_last_hidden, match_alpha = self.match_rnn.forward(context_encode, context_new_mask,
+                                                                                question_encode, question_new_mask)
+        vis_param = {'match': match_alpha}
 
         # self match lstm: (seq_len, batch, hidden_size)
         if self.enable_self_match:
-            qt_aware_ct, qt_aware_last_hidden, _ = self.self_match_rnn.forward(qt_aware_ct, context_new_mask,
-                                                                               qt_aware_ct, context_new_mask)
+            qt_aware_ct, qt_aware_last_hidden, self_alpha = self.self_match_rnn.forward(qt_aware_ct, context_new_mask,
+                                                                                        qt_aware_ct, context_new_mask)
+            vis_param['self'] = self_alpha
 
         # birnn after self match: (seq_len, batch, hidden_size)
         if self.enable_birnn_after_self:
@@ -147,4 +149,4 @@ class MatchLSTMModel(torch.nn.Module):
         else:
             ans_range = torch.max(ans_range_prop, 2)[1]
 
-        return ans_range_prop, ans_range, viz_alpha
+        return ans_range_prop, ans_range, vis_param
