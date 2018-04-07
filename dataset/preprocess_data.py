@@ -22,7 +22,7 @@ class PreprocessData:
     """
 
     padding = '__padding__'  # id = 0
-    padding_idx = 0
+    padding_idx = 0          # also same to char level padding values
     answer_padding_idx = -1
 
     __compress_option = dict(compression="gzip", compression_opts=9, shuffle=False)
@@ -43,12 +43,14 @@ class PreprocessData:
 
         # temp data
         self.__word2id = {self.padding: 0}
+        self.__char2id = {self.padding: 0}
         self.__word2vec = {self.padding: [0. for i in range(self.__embedding_size)]}
         self.__oov_num = 0
 
         # data need to store in hdf5 file
         self.__meta_data = {'id2vec': [[0. for i in range(self.__embedding_size)]],
-                            'id2word': [self.padding]}
+                            'id2word': [self.padding],
+                            'id2char': [self.padding]}
         self.__data = {}
         self.__attr = {}
 
@@ -95,12 +97,14 @@ class PreprocessData:
             cur_context = question_grp['context']
             cur_qas = question_grp['qas']
 
+            self.__update_to_char(cur_context)
             cur_context_toke = nltk.word_tokenize(cur_context)
             cur_context_ids = self.__sentence_to_id(cur_context_toke)
             self.__max_context_token_len = max(self.__max_context_token_len, len(cur_context_ids))
 
             for qa in cur_qas:
                 cur_question = qa['question']
+                self.__update_to_char(cur_question)
                 cur_question_toke = nltk.word_tokenize(cur_question)
                 cur_question_ids = self.__sentence_to_id(cur_question_toke)
                 self.__max_question_token_len = max(self.__max_question_token_len, len(cur_question_ids))
@@ -184,6 +188,16 @@ class PreprocessData:
 
         return ids
 
+    def __update_to_char(self, sentence):
+        """
+        update char2id
+        :param sentence: raw sentence
+        """
+        for ch in sentence:
+            if ch not in self.__char2id:
+                self.__char2id[ch] = len(self.__char2id)
+                self.__meta_data['id2char'].append(ch)
+
     def __handle_glove(self):
         """
         handle glove embeddings, restore embeddings with dictionary
@@ -220,11 +234,15 @@ class PreprocessData:
 
         # meta_data
         id2word = np.array(self.__meta_data['id2word'], dtype=np.str)
+        id2char = np.array(self.__meta_data['id2char'], dtype=np.str)
         id2vec = np.array(self.__meta_data['id2vec'], dtype=np.float32)
         f_meta_data = f.create_group('meta_data')
 
         meta_data = f_meta_data.create_dataset('id2word', id2word.shape, dtype=str_dt, **self.__compress_option)
         meta_data[...] = id2word
+
+        meta_data = f_meta_data.create_dataset('id2char', id2char.shape, dtype=str_dt, **self.__compress_option)
+        meta_data[...] = id2char
 
         meta_data = f_meta_data.create_dataset('id2vec', id2vec.shape, dtype=id2vec.dtype, **self.__compress_option)
         meta_data[...] = id2vec
@@ -261,6 +279,7 @@ class PreprocessData:
         self.__attr['train_size'] = len(train_cache_nopad['answer_range'])
         self.__attr['dev_size'] = len(dev_cache_nopad['answer_range'])
         self.__attr['word_dict_size'] = len(self.__word2id)
+        self.__attr['char_dict_size'] = len(self.__char2id)
         self.__attr['embedding_size'] = self.__embedding_size
         self.__attr['oov_word_num'] = self.__oov_num
 

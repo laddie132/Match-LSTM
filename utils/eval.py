@@ -5,15 +5,16 @@ __author__ = 'han'
 
 import torch
 import logging
-from utils.functions import to_variable
+from utils.functions import to_variable, del_zeros_right
 from dataset.preprocess_data import PreprocessData
 
 logger = logging.getLogger(__name__)
 
 
-def eval_on_model(model, criterion, batch_data, epoch, enable_cuda):
+def eval_on_model(model, criterion, batch_data, epoch, enable_cuda, batch_char_func=None):
     """
     evaluate on a specific trained model
+    :param batch_char_func: transform word id to char id representation
     :param model: model with weight loaded
     :param criterion:
     :param batch_data: test data with batches
@@ -28,10 +29,17 @@ def eval_on_model(model, criterion, batch_data, epoch, enable_cuda):
     sum_loss = 0.
 
     for bnum, batch in enumerate(batch_data):
-        bat_context, bat_question, bat_answer_range = list(map(lambda x: to_variable(x, enable_cuda, volatile=True),
-                                                               list(batch)))
 
-        tmp_ans_prop, tmp_ans_range, _ = model.forward(bat_context, bat_question)
+        # batch data
+        bat_context, bat_question, bat_answer_range = batch
+        bat_context_char = batch_char_func(bat_context)
+        bat_question_char = batch_char_func(bat_question)
+
+        bat_context, bat_question, bat_context_char, bat_question_char, bat_answer_range = \
+            [to_variable(x, enable_cuda, volatile=True) for x in
+             [bat_context, bat_question, bat_context_char, bat_question_char, bat_answer_range]]
+
+        tmp_ans_prop, tmp_ans_range, _ = model.forward(bat_context, bat_question, bat_context_char, bat_question_char)
 
         tmp_size = bat_answer_range.shape[0]
         dev_data_size += tmp_size
@@ -55,9 +63,8 @@ def eval_on_model(model, criterion, batch_data, epoch, enable_cuda):
                         (epoch, bnum, batch_cnt, num_em * 1. / dev_data_size, score_f1 / dev_data_size, batch_loss))
 
         # manual release memory
-        del bat_context
-        del bat_question
-        del bat_answer_range
+        del bat_context, bat_question, bat_answer_range, bat_context_char, bat_question_char
+        del tmp_ans_prop, tmp_ans_range, batch_loss
         if enable_cuda:
             torch.cuda.empty_cache()
 

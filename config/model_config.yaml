@@ -19,7 +19,7 @@ model:
   encoder_word_layers: 3
   encoder_char_layers: 1
   encoder_bidirection: True
-  encoder_char: False
+  enable_char: True
 
   match_lstm_bidirection: True
   self_match_lstm_bidirection: True
@@ -38,7 +38,7 @@ train:
   epoch: 30
   enable_cuda: False
 
-  optimizer: 'adadelta'  # adam, sgd, adamax, adadelta(default is adamax)
+  optimizer: 'adamax'  # adam, sgd, adamax, adadelta(default is adamax)
   learning_rate: 0.002  # only for sgd
   clip_grad_norm: 5
 

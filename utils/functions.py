@@ -313,7 +313,8 @@ def answer_search(answer_prop, mask, max_tokens=15):
     max_prop1, max_prop_idx1 = torch.max(ans_s_e_p, 1)
     max_prop2, max_prop_idx2 = torch.max(max_prop1, 1)
 
-    ans_e = max_prop_idx1[:, max_prop_idx2].diag()  # notice that only diag element valid
+    ans_e = max_prop_idx1.gather(1, max_prop_idx2.unsqueeze(1)).squeeze(1)
+    # ans_e = max_prop_idx1[:, max_prop_idx2].diag()  # notice that only diag element valid, the same with top ways
     ans_s = ans_e - max_prop_idx2
 
     ans_range = torch.stack((ans_s, ans_e), dim=1)
@@ -333,3 +334,22 @@ def flip(tensor, flip_dim=0):
         idx = idx.cuda()
     inverted_tensor = tensor.index_select(flip_dim, idx)
     return inverted_tensor
+
+
+def del_zeros_right(tensor):
+    """
+    delete the extra zeros in the right column
+    :param tensor: (batch, seq_len)
+    :return:
+    """
+
+    seq_len = tensor.shape[1]
+    for i in range(seq_len - 1, -1, -1):
+        tmp_col = tensor[:, i]
+        tmp_sum_col = torch.sum(tmp_col)
+        if tmp_sum_col > 0:
+            break
+
+        tensor = tensor[:, :i]
+
+    return tensor

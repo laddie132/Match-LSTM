@@ -23,7 +23,7 @@ class SquadDataset:
     def __init__(self, global_config):
         self.__data = {}
         self.__attr = {}
-        self.__id2word = []
+        self.__meta_data = {}
 
         self.global_config = global_config
 
@@ -47,7 +47,10 @@ class SquadDataset:
             for key, value in f.attrs.items():
                 self.__attr[key] = value
 
-            self.__id2word = np.array(f['meta_data']['id2word'])
+            self.__meta_data['id2word'] = np.array(f['meta_data']['id2word'])
+            self.__meta_data['id2char'] = np.array(f['meta_data']['id2char'])
+        self.__meta_data['char2id'] = dict(zip(self.__meta_data['id2char'],
+                                               range(len(self.__meta_data['id2char']))))
 
     def get_dataloader_train(self, batch_size):
         """
@@ -83,40 +86,43 @@ class SquadDataset:
 
     def get_batch_train(self, batch_size):
         """
-        - notice: replaced by dataloader
         a train data batch
         :param batch_size:
         :return:
         """
-        train_data = self.__data['train']
-        data_size = len(train_data['context'])
-        i = 0
-        while i < data_size:
-            j = min(i + batch_size, data_size)
-            batch = (to_long_tensor(train_data['context'][i:j]),
-                     to_long_tensor(train_data['question'][i:j]),
-                     to_long_tensor(train_data['answer_range'][i:j]))
-            i = j
-            yield batch
+        return self.get_batch_data(batch_size, 'train')
 
     def get_batch_dev(self, batch_size):
         """
-        - notice: replaced by dataloader
         development data batch
         :param batch_size:
-        :return: generator [packed squences]
+        :return: iterator
         """
-        dev_data = self.__data['dev']
-        data_size = len(dev_data['context'])
+        return self.get_batch_data(batch_size, 'dev')
+
+    def get_batch_data(self, batch_size, type):
+        """
+        get batch data
+        :param batch_size:
+        :return: iterator
+        """
+        data = self.__data[type]
+        data_size = len(data['context'])
         i = 0
         while i < data_size:
             j = min(i + batch_size, data_size)
-            batch = (to_long_tensor(dev_data['context'][i:j]),
-                     to_long_tensor(dev_data['question'][i:j]),
-                     to_long_tensor(dev_data['answer_range'][i:j]))
+            bat = [data['context'][i:j], data['question'][i:j], data['answer_range'][i:j]]
+            bat_tensor = [to_long_tensor(x) for x in bat]
+            bat_tensor_new = [del_zeros_right(x) for x in bat_tensor]
+
+            # bat_context_char = self.batch_word_to_char(bat_tensor_new[0])
+            # bat_question_char = self.batch_word_to_char(bat_tensor_new[1])
+
+            # bat_tensor_new.append(bat_context_char)
+            # bat_tensor_new.append(bat_question_char)
 
             i = j
-            yield batch
+            yield bat_tensor_new
 
     def get_train_batch_cnt(self, batch_size):
         """
@@ -140,6 +146,23 @@ class SquadDataset:
 
         return cnt_batch
 
+    def batch_word_to_char(self, batch_wordid):
+        """
+        transform batch data with sentence of wordid to batch data wih sentence of char id
+        :param batch_wordid: (batch, seq_len), torch tensor
+        :return: (batch, seq_len, word_len), torch tensor
+        """
+        batch_wordid = batch_wordid.numpy()
+        batch_word = [self.sentence_id2word(x) for x in batch_wordid]
+
+        batch_length = [[len(x) if x != PreprocessData.padding else 0 for x in s] for s in batch_word]
+        batch_max_len = np.max(batch_length)
+
+        batch_char = list(map(lambda x: self.sentence_char2id(x, max_len=batch_max_len), batch_word))
+        batch_char = np.stack(batch_char, axis=0)
+
+        return to_long_tensor(batch_char)
+
     def preprocess(self):
         """
         preprocessing dataset to h5 file
@@ -159,12 +182,39 @@ class SquadDataset:
         :param s_id:
         :return:
         """
-        s = map(lambda id: self.__id2word[id], s_id)
+        s = map(lambda id: self.__meta_data['id2word'][id], s_id)
         return list(s)
 
     def sentence_word2id(self, s):
-        s_id = map(lambda word: np.where(self.__id2word == word)[0][0], s)
+        """
+        transform a sentence with word to a sentence with word id
+        (Notice it's a slow version when using np.where)
+        :param s:
+        :return:
+        """
+        s_id = map(lambda word: np.where(self.__meta_data['id2word'] == word)[0][0], s)
         return np.array(list(s_id))
+
+    def word_id2char(self, w_id):
+        w = map(lambda id: self.__meta_data['id2char'][id], w_id)
+        return list(w)
+
+    def word_char2id(self, w):
+        if w == PreprocessData.padding:     # not actual word
+            return np.ones(1,)  # make sure word length>0 and right encoding, here any none-zero value not effect
+
+        w_id = map(lambda ch: self.__meta_data['char2id'][ch], w)
+        return np.array(list(w_id))
+
+    def sentence_char2id(self, s, max_len=None):
+        s_cid = list(map(lambda w: self.word_char2id(w), s))
+
+        if max_len is None:
+            word_len = list(map(lambda x: len(x), s_cid))
+            max_len = np.max(word_len)
+        s_cid_pad = map(lambda x: np.pad(x, (0, max_len-len(x)), 'constant', constant_values=(0, 0)), s_cid)
+
+        return np.stack(list(s_cid_pad), axis=0)
 
 
 class CQA_Dataset(torch.utils.data.Dataset):

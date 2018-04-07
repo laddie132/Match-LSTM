@@ -6,6 +6,7 @@ __author__ = 'han'
 import torch
 import torch.nn as nn
 from models.layers import *
+from dataset.preprocess_data import PreprocessData
 from utils.functions import answer_search
 
 
@@ -18,6 +19,8 @@ class MatchLSTMModel(torch.nn.Module):
     Inputs:
         context: (batch, seq_len)
         question: (batch, seq_len)
+        context_char: (batch, seq_len, word_len)
+        question_char: (batch, seq_len, word_len)
 
     Outputs:
         answer_range: (batch, answer_len, context_len)
@@ -46,6 +49,7 @@ class MatchLSTMModel(torch.nn.Module):
 
         encoder_word_layers = global_config['model']['encoder_word_layers']
         encoder_char_layers = global_config['model']['encoder_char_layers']
+        self.enable_char = global_config['model']['enable_char']
 
         self.init_ptr_hidden_mode = global_config['model']['init_ptr_hidden']
         hidden_mode = global_config['model']['hidden_mode']
@@ -56,6 +60,9 @@ class MatchLSTMModel(torch.nn.Module):
 
         # construct model
         self.embedding = GloveEmbedding(dataset_h5_path=global_config['data']['dataset_h5'])
+        if self.enable_char:
+            self.char_embedding = CharEmbedding(dataset_h5_path=global_config['data']['dataset_h5'])
+
         self.encoder = MyRNNBase(mode=hidden_mode,
                                  input_size=embedding_size,
                                  hidden_size=hidden_size,
@@ -63,6 +70,14 @@ class MatchLSTMModel(torch.nn.Module):
                                  bidirectional=encoder_bidirection,
                                  dropout_p=dropout_p)
         encode_out_size = hidden_size * encoder_direction_num
+        if self.enable_char:
+            self.char_encoder = CharEncoder(mode=hidden_mode,
+                                            input_size=embedding_size,
+                                            hidden_size=hidden_size,
+                                            num_layers=encoder_char_layers,
+                                            bidirectional=encoder_bidirection,
+                                            dropout_p=dropout_p)
+            encode_out_size *= 2
 
         self.match_rnn = MatchRNN(mode=hidden_mode,
                                   input_size=encode_out_size,
@@ -107,45 +122,56 @@ class MatchLSTMModel(torch.nn.Module):
             raise ValueError('Wrong init_ptr_hidden mode select %s, change to pooling or linear'
                              % self.init_ptr_hidden_mode)
 
-    def forward(self, context, question):
+    def forward(self, context, question, context_char, question_char):
         # get embedding: (seq_len, batch, embedding_size)
         context_vec, context_mask = self.embedding.forward(context)
         question_vec, question_mask = self.embedding.forward(question)
 
         # encode: (seq_len, batch, hidden_size)
-        context_encode, context_new_mask = self.encoder.forward(context_vec, context_mask)
-        question_encode, question_new_mask = self.encoder.forward(question_vec, question_mask)
+        context_encode, _ = self.encoder.forward(context_vec, context_mask)
+        question_encode, _ = self.encoder.forward(question_vec, question_mask)
+
+        # char-level embedding and encode: (seq_len, batch, hidden_size)
+        if self.enable_char:
+            context_vec_char, context_char_mask = self.char_embedding.forward(context_char)
+            question_vec_char, question_char_mask = self.char_embedding.forward(question_char)
+
+            context_encode_char = self.char_encoder.forward(context_vec_char, context_char_mask, context_mask)
+            question_encode_char = self.char_encoder.forward(question_vec_char, question_char_mask, question_mask)
+
+            context_encode = torch.cat((context_encode, context_encode_char), dim=-1)
+            question_encode = torch.cat((question_encode, question_encode_char), dim=-1)
 
         # match lstm: (seq_len, batch, hidden_size)
-        qt_aware_ct, qt_aware_last_hidden, match_alpha = self.match_rnn.forward(context_encode, context_new_mask,
-                                                                                question_encode, question_new_mask)
+        qt_aware_ct, qt_aware_last_hidden, match_alpha = self.match_rnn.forward(context_encode, context_mask,
+                                                                                question_encode, question_mask)
         vis_param = {'match': match_alpha}
 
         # self match lstm: (seq_len, batch, hidden_size)
         if self.enable_self_match:
-            qt_aware_ct, qt_aware_last_hidden, self_alpha = self.self_match_rnn.forward(qt_aware_ct, context_new_mask,
-                                                                                        qt_aware_ct, context_new_mask)
+            qt_aware_ct, qt_aware_last_hidden, self_alpha = self.self_match_rnn.forward(qt_aware_ct, context_mask,
+                                                                                        qt_aware_ct, context_mask)
             vis_param['self'] = self_alpha
 
         # birnn after self match: (seq_len, batch, hidden_size)
         if self.enable_birnn_after_self:
-            qt_aware_ct, _ = self.birnn_after_self.forward(qt_aware_ct, context_new_mask)
+            qt_aware_ct, _ = self.birnn_after_self.forward(qt_aware_ct, context_mask)
 
         # pointer net init hidden: (batch, hidden_size)
         ptr_net_hidden = None
         if self.init_ptr_hidden_mode == 'pooling':
-            ptr_net_hidden = self.init_ptr_hidden.forward(question_encode, question_new_mask)
+            ptr_net_hidden = self.init_ptr_hidden.forward(question_encode, question_mask)
         elif self.init_ptr_hidden_mode == 'linear':
             ptr_net_hidden = self.init_ptr_hidden.forward(qt_aware_last_hidden)
             ptr_net_hidden = torch.tanh(ptr_net_hidden)
 
         # pointer net: (answer_len, batch, context_len)
-        ans_range_prop = self.pointer_net.forward(qt_aware_ct, context_new_mask, ptr_net_hidden)
+        ans_range_prop = self.pointer_net.forward(qt_aware_ct, context_mask, ptr_net_hidden)
         ans_range_prop = ans_range_prop.transpose(0, 1)
 
         # answer range
         if self.enable_search:
-            ans_range = answer_search(ans_range_prop, context_new_mask)
+            ans_range = answer_search(ans_range_prop, context_mask)
         else:
             ans_range = torch.max(ans_range_prop, 2)[1]
 

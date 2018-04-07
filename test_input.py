@@ -74,10 +74,14 @@ def main():
     context_id = dataset.sentence_word2id(context_token)
     question_id = dataset.sentence_word2id(question_token)
 
-    context_var = to_long_variable(context_id, volatile=True).view(1, -1)
-    question_var = to_long_variable(question_id, volatile=True).view(1, -1)
+    context_id_char = dataset.sentence_char2id(context_token)
+    question_id_char = dataset.sentence_char2id(question_token)
 
-    out_ans_prop, out_ans_range, vis_param = model.forward(context_var, question_var)
+    context_var, question_var, context_var_char, question_var_char = [to_long_variable(x, volatile=True).unsqueeze(0)
+                                                                      for x in [context_id, question_id,
+                                                                                context_id_char, question_id_char]]
+
+    out_ans_prop, out_ans_range, vis_param = model.forward(context_var, question_var, context_var_char, question_var_char)
     out_ans_range = out_ans_range.cpu().data.numpy()
 
     start = out_ans_range[0][0]

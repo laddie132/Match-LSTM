@@ -91,7 +91,8 @@ def main():
                                   batch_data=batch_train_data,
                                   epoch=epoch,
                                   clip_grad_max=clip_grad_max,
-                                  enable_cuda=enable_cuda)
+                                  enable_cuda=enable_cuda,
+                                  batch_char_func=dataset.batch_word_to_char)
         logger.info('epoch=%d, sum_loss=%.5f' % (epoch, sum_loss))
 
         # evaluate
@@ -100,7 +101,8 @@ def main():
                                                                    criterion=criterion,
                                                                    batch_data=batch_dev_data,
                                                                    epoch=epoch,
-                                                                   enable_cuda=enable_cuda)
+                                                                   enable_cuda=enable_cuda,
+                                                                   batch_char_func=dataset.batch_word_to_char)
         logger.info("epoch=%d, ave_score_em=%.2f, ave_score_f1=%.2f, sum_loss=%.5f" %
                     (epoch, valid_score_em, valid_score_f1, valid_loss))
 
@@ -116,9 +118,10 @@ def main():
     logger.info('finished.')
 
 
-def train_on_model(model, criterion, optimizer, batch_data, epoch, clip_grad_max, enable_cuda):
+def train_on_model(model, criterion, optimizer, batch_data, epoch, clip_grad_max, enable_cuda, batch_char_func=None):
     """
     train on every batch
+    :param batch_char_func:
     :param model:
     :param criterion:
     :param batch_data:
@@ -133,10 +136,17 @@ def train_on_model(model, criterion, optimizer, batch_data, epoch, clip_grad_max
     for i, batch in enumerate(batch_data):
         optimizer.zero_grad()
 
+        # batch data
+        bat_context, bat_question, bat_answer_range = batch
+        bat_context_char = batch_char_func(bat_context)
+        bat_question_char = batch_char_func(bat_question)
+
+        bat_context, bat_question, bat_context_char, bat_question_char, bat_answer_range = \
+            [to_variable(x, enable_cuda, volatile=False) for x in
+             [bat_context, bat_question, bat_context_char, bat_question_char, bat_answer_range]]
+
         # forward
-        bat_context, bat_question, bat_answer_range = list(map(lambda x: to_variable(x, enable_cuda, volatile=False),
-                                                               list(batch)))
-        ans_range_prop, _, _ = model.forward(bat_context, bat_question)
+        ans_range_prop, _, _ = model.forward(bat_context, bat_question, bat_context_char, bat_question_char)
 
         # get loss
         loss = criterion.forward(ans_range_prop, bat_answer_range)
@@ -152,9 +162,8 @@ def train_on_model(model, criterion, optimizer, batch_data, epoch, clip_grad_max
         logger.info('epoch=%d, batch=%d/%d, loss=%.5f' % (epoch, i, batch_cnt, batch_loss))
 
         # manual release memory
-        del bat_context
-        del bat_question
-        del bat_answer_range
+        del bat_context, bat_question, bat_answer_range, bat_context_char, bat_question_char
+        del ans_range_prop, loss
         if enable_cuda:
             torch.cuda.empty_cache()
 

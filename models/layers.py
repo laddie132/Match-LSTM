@@ -9,15 +9,14 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 from dataset.preprocess_data import PreprocessData
-from utils.functions import masked_softmax, generate_mask, compute_mask
+from utils.functions import masked_softmax, compute_mask
 
 
 class GloveEmbedding(torch.nn.Module):
     """
     Glove Embedding Layer, also compute the mask of padding index
     Args:
-        - glove_h5_path: glove embedding file path
-        - dropout_p: dropout probability
+        - dataset_h5_path: glove embedding file path
     Inputs:
         **input** (batch, seq_len): sequence with word index
     Outputs
@@ -28,10 +27,10 @@ class GloveEmbedding(torch.nn.Module):
     def __init__(self, dataset_h5_path):
         super(GloveEmbedding, self).__init__()
         self.dataset_h5_path = dataset_h5_path
-        self.n_embeddings, self.len_embedding, self.weights = self.load_glove_hdf5()
+        n_embeddings, len_embedding, weights = self.load_glove_hdf5()
 
-        self.embedding_layer = torch.nn.Embedding(num_embeddings=self.n_embeddings, embedding_dim=self.len_embedding)
-        self.embedding_layer.weight = torch.nn.Parameter(self.weights)
+        self.embedding_layer = torch.nn.Embedding(num_embeddings=n_embeddings, embedding_dim=len_embedding)
+        self.embedding_layer.weight = torch.nn.Parameter(weights)
         self.embedding_layer.weight.requires_grad = False
 
     def load_glove_hdf5(self):
@@ -50,6 +49,77 @@ class GloveEmbedding(torch.nn.Module):
         out_emb = tmp_emb.transpose(0, 1)
 
         return out_emb, mask
+
+
+class CharEmbedding(torch.nn.Module):
+    """
+    Char Embedding Layer, random weight
+    Args:
+        - dataset_h5_path: char embedding file path
+    Inputs:
+        **input** (batch, seq_len, word_len): word sequence with char index
+    Outputs
+        **output** (batch, seq_len, word_len, embedding_size): tensor contain char embeddings
+        **mask** (batch, seq_len, word_len)
+    """
+    def __init__(self, dataset_h5_path):
+        super(CharEmbedding, self).__init__()
+        self.dataset_h5_path = dataset_h5_path
+        n_embedding, len_embedding = self.load_dataset_h5()
+
+        self.embedding_layer = torch.nn.Embedding(num_embeddings=n_embedding, embedding_dim=len_embedding, padding_idx=0)
+        self.embedding_layer.weight.requires_grad = False
+
+    def load_dataset_h5(self):
+        with h5py.File(self.dataset_h5_path, 'r') as f:
+            word_dict_size = f.attrs['char_dict_size']
+            embedding_size = f.attrs['embedding_size']  # using the same embedding size on word-level and char-level
+
+        return int(word_dict_size), int(embedding_size)
+
+    def forward(self, x):
+        batch_size, seq_len, word_len = x.shape
+        x = x.view(-1, word_len)
+
+        mask = compute_mask(x, 0)   # char-level padding idx is zero
+        x_emb = self.embedding_layer.forward(x)
+        x_emb = x_emb.view(batch_size, seq_len, word_len, -1)
+        mask = mask.view(batch_size, seq_len, word_len)
+
+        return x_emb, mask
+
+
+class CharEncoder(torch.nn.Module):
+    """
+    char-level encoder with MyRNNBase used
+    Inputs:
+        **input** (batch, seq_len, word_len, embedding_size)
+        **char_mask** (batch, seq_len, word_len)
+        **word_mask** (batch, seq_len)
+    Outputs
+        **output** (seq_len, batch, hidden_size)
+    """
+    def __init__(self, mode, input_size, hidden_size, num_layers, bidirectional, dropout_p):
+        super(CharEncoder, self).__init__()
+
+        self.encoder = MyRNNBase(mode=mode,
+                                 input_size=input_size,
+                                 hidden_size=hidden_size,
+                                 num_layers=num_layers,
+                                 bidirectional=bidirectional,
+                                 dropout_p=dropout_p)
+
+    def forward(self, x, char_mask, word_mask):
+        batch_size, seq_len, word_len, embedding_size = x.shape
+        x = x.view(-1, word_len, embedding_size)
+        x = x.transpose(0, 1)
+        char_mask = char_mask.view(-1, word_len)
+
+        _, x_encode = self.encoder.forward(x, char_mask)     # (batch*seq_len, hidden_size)
+        x_encode = x_encode.view(batch_size, seq_len, -1)   # (batch, seq_len, hidden_size)
+        x_encode = x_encode * word_mask.unsqueeze(-1)
+
+        return x_encode.transpose(0, 1)
 
 
 class MatchRNNAttention(torch.nn.Module):
@@ -362,16 +432,17 @@ class MyRNNBase(torch.nn.Module):
           of the input sequence.
         - **mask** (batch, seq_len): tensor show whether a padding index for each element in the batch.
 
-    Outputs: output, output_mask
+    Outputs: output, last_state
         - **output** (seq_len, batch, hidden_size * num_directions): tensor
           containing the output features `(h_t)` from the last layer of the RNN,
           for each t.
-        - **output_length** (batch, seq_len): list of each sample true length
+        - **last_state** (batch, hidden_size * num_directions): the final hidden state of rnn
 
     """
 
     def __init__(self, mode, input_size, hidden_size, num_layers, bidirectional, dropout_p):
         super(MyRNNBase, self).__init__()
+        self.mode = mode
 
         if mode == 'LSTM':
             self.hidden = torch.nn.LSTM(input_size=input_size,
@@ -414,10 +485,18 @@ class MyRNNBase(torch.nn.Module):
 
         # unsorted o
         o_unsort = o.index_select(1, idx_unsort)  # notice here first dim is seq_len
-        new_mask = generate_mask(lengths_sort, enable_cuda=v.is_cuda)
-        new_mask_unsort = new_mask.index_select(0, idx_unsort)
 
-        return o_unsort, new_mask_unsort
+        # get the last time state
+        len_idx = (lengths - 1).view(-1, 1).expand(-1, o_unsort.size(2)).unsqueeze(0)
+        len_idx = torch.autograd.Variable(len_idx)
+        if v.is_cuda:
+            len_idx = len_idx.cuda()
+        o_last = o_unsort.gather(0, len_idx)
+
+        # new_mask = generate_mask(lengths_sort, enable_cuda=v.is_cuda)
+        # new_mask_unsort = new_mask.index_select(0, idx_unsort)
+
+        return o_unsort, o_last
 
 
 class AttentionPooling(torch.nn.Module):
