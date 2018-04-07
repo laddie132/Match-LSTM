@@ -104,17 +104,18 @@ def pad_sequences(sequences, maxlen=None, dtype='int32', padding='pre', truncati
     return x
 
 
-def to_long_variable(np_array, enable_cuda=False):
+def to_long_variable(np_array, enable_cuda=False, volatile=False):
     """
     convert a numpy array to Torch Variable with LongTensor
+    :param volatile:
     :param np_array:
     :param enable_cuda:
     :return:
     """
     if enable_cuda:
-        return Variable(torch.from_numpy(np_array).type(torch.LongTensor)).cuda()
+        return Variable(torch.from_numpy(np_array).type(torch.LongTensor), volatile=volatile).cuda()
 
-    return Variable(torch.from_numpy(np_array).type(torch.LongTensor))
+    return Variable(torch.from_numpy(np_array).type(torch.LongTensor), volatile=volatile)
 
 
 def to_long_tensor(np_array):
@@ -126,17 +127,18 @@ def to_long_tensor(np_array):
     return torch.from_numpy(np_array).type(torch.LongTensor)
 
 
-def to_variable(tensor, enable_cuda=False):
+def to_variable(tensor, enable_cuda=False, volatile=False):
     """
     convert to torch variable
+    :param volatile:
     :param tensor:
     :param enable_cuda:
     :return:
     """
     if enable_cuda:
-        return Variable(tensor).cuda()
+        return Variable(tensor, volatile=volatile).cuda()
 
-    return Variable(tensor)
+    return Variable(tensor, volatile=volatile)
 
 
 def count_parameters(model):

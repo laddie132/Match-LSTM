@@ -134,7 +134,8 @@ def train_on_model(model, criterion, optimizer, batch_data, epoch, clip_grad_max
         optimizer.zero_grad()
 
         # forward
-        bat_context, bat_question, bat_answer_range = list(map(lambda x: to_variable(x, enable_cuda), list(batch)))
+        bat_context, bat_question, bat_answer_range = list(map(lambda x: to_variable(x, enable_cuda, volatile=False),
+                                                               list(batch)))
         ans_range_prop, _, _ = model.forward(bat_context, bat_question)
 
         # get loss

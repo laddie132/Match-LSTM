@@ -28,7 +28,8 @@ def eval_on_model(model, criterion, batch_data, epoch, enable_cuda):
     sum_loss = 0.
 
     for bnum, batch in enumerate(batch_data):
-        bat_context, bat_question, bat_answer_range = list(map(lambda x: to_variable(x, enable_cuda), list(batch)))
+        bat_context, bat_question, bat_answer_range = list(map(lambda x: to_variable(x, enable_cuda, volatile=True),
+                                                               list(batch)))
 
         tmp_ans_prop, tmp_ans_range, _ = model.forward(bat_context, bat_question)
 

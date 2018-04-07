@@ -74,8 +74,8 @@ def main():
     context_id = dataset.sentence_word2id(context_token)
     question_id = dataset.sentence_word2id(question_token)
 
-    context_var = to_long_variable(context_id).view(1, -1)
-    question_var = to_long_variable(question_id).view(1, -1)
+    context_var = to_long_variable(context_id, volatile=True).view(1, -1)
+    question_var = to_long_variable(question_id, volatile=True).view(1, -1)
 
     out_ans_prop, out_ans_range, vis_param = model.forward(context_var, question_var)
     out_ans_range = out_ans_range.cpu().data.numpy()
