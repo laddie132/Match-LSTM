@@ -9,6 +9,7 @@ import math
 import torch
 import torch.utils.data
 import logging
+import pandas as pd
 from dataset.preprocess_data import PreprocessData
 from utils.functions import *
 
@@ -215,6 +216,43 @@ class SquadDataset:
         s_cid_pad = map(lambda x: np.pad(x, (0, max_len-len(x)), 'constant', constant_values=(0, 0)), s_cid)
 
         return np.stack(list(s_cid_pad), axis=0)
+
+    def gather_context_seq_len(self, type, steps=None):
+        """
+        gather the context sequence counts with different lengths
+        :param type: 'train' or 'dev' data
+        :param steps: set to None means default steps
+        :return:
+        """
+        data = self.__data[type]
+        context = to_long_tensor(data['context'])
+        mask = compute_mask(context)
+        lengths = mask.eq(1).long().sum(1).squeeze()
+        length_pd = pd.DataFrame(data=lengths.numpy(), columns=['length'])
+
+        if steps is None:
+            steps = [0, 100, 200, 300, 400, 500, 600, 700, 800]
+        assert len(steps) > 0
+
+        # get step length cnt
+        real_step = []
+        step_length_cnt = []
+        for i in range(1, len(steps)):
+            lower_bound = steps[i-1]
+            upper_bound = steps[i]
+            assert lower_bound < upper_bound   # [lower_bound, upper_bound)
+            real_step.append((lower_bound, upper_bound))
+
+            valid = length_pd[(length_pd['length'] < upper_bound) & (length_pd['length'] >= lower_bound)]
+            tmp_cnt = valid.shape[0]
+            step_length_cnt.append(tmp_cnt)
+        rtn_step_length = list(zip(real_step, step_length_cnt))
+
+        # get all length cnt
+        length_cnt = length_pd['length'].value_counts().to_frame(name='cnt')
+        length_cnt['length'] = length_cnt.index
+
+        return rtn_step_length, length_cnt
 
 
 class CQA_Dataset(torch.utils.data.Dataset):
