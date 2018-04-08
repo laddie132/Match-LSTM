@@ -3,6 +3,7 @@ data:
     train_path: data/SQuAD/train-v1.1.json
     dev_path: data/SQuAD/dev-v1.1.json
   dataset_h5: data/squad_glove.h5
+  ignore_max_len: 100000 # context token len > ignore_max_len will be dropped
 
   embedding_path: data/glove.840B.300d.zip
 
@@ -27,6 +28,8 @@ model:
 
   birnn_after_self: False
   init_ptr_hidden: linear # pooling, linear, None
+  ptr_bidirection: False
+  answer_search: True
 
   hidden_mode: LSTM # LSTM or GRU
   gated_attention: False

@@ -353,3 +353,31 @@ def del_zeros_right(tensor):
         tensor = tensor[:, :i]
 
     return tensor
+
+
+def masked_flip(vin, mask, flip_dim=0):
+    """
+    flip a tensor
+    :param vin: (..., batch, ...), batch should on dim=1, input batch with padding values
+    :param mask: (batch, seq_len), show whether padding index
+    :param flip_dim: dim to flip on
+    :return:
+    """
+    length = mask.data.eq(1).long().sum(1).squeeze()  # todo: speed up, vectoration
+    batch_size = vin.shape[1]
+
+    flip_list = []
+    for i in range(batch_size):
+        cur_tensor = vin[:, i, :]
+        cur_length = length[i]
+
+        idx = list(range(cur_length - 1, -1, -1)) + list(range(cur_length, cur_tensor.shape[0]))
+        idx = torch.autograd.Variable(torch.LongTensor(idx))
+        if vin.is_cuda:
+            idx = idx.cuda()
+
+        cur_inv_tensor = cur_tensor.unsqueeze(1).index_select(flip_dim, idx).squeeze(1)
+        flip_list.append(cur_inv_tensor)
+    inv_tensor = torch.stack(flip_list, dim=1)
+
+    return inv_tensor

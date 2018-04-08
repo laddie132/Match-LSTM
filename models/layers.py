@@ -9,7 +9,7 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 from dataset.preprocess_data import PreprocessData
-from utils.functions import masked_softmax, compute_mask
+from utils.functions import masked_softmax, compute_mask, masked_flip
 
 
 class GloveEmbedding(torch.nn.Module):
@@ -258,33 +258,8 @@ class MatchRNN(torch.nn.Module):
 
         self.dropout = torch.nn.Dropout(p=dropout_p)
 
-    def masked_flip(self, vin, mask):
-        """
-        flip a tensor
-        :param vin: input batch with padding values
-        :param mask: show whether padding index
-        :return:
-        """
-        length = mask.data.eq(1).long().sum(1).squeeze()  # todo: speed up, vectoration
-
-        flip_list = []
-        for i in range(vin.shape[1]):
-            cur_tensor = vin[:, i, :]
-            cur_length = length[i]
-
-            idx = list(range(cur_length - 1, -1, -1)) + list(range(cur_length, cur_tensor.shape[0]))
-            idx = torch.autograd.Variable(torch.LongTensor(idx))
-            if vin.is_cuda:
-                idx = idx.cuda()
-
-            cur_inv_tensor = cur_tensor.index_select(0, idx)
-            flip_list.append(cur_inv_tensor)
-        inv_tensor = torch.stack(flip_list, dim=1)
-
-        return inv_tensor
-
     def forward(self, Hp, Hp_mask, Hq, Hq_mask):
-        Hp = self.dropout(Hp)
+        Hp = self.dropout(Hp)       # todo: move it to rnn of each direction
         Hq = self.dropout(Hq)
 
         left_hidden, left_alpha = self.left_match_rnn.forward(Hp, Hq, Hq_mask)
@@ -292,7 +267,7 @@ class MatchRNN(torch.nn.Module):
         rtn_alpha = {'left': left_alpha}
 
         if self.bidirectional:
-            Hp_inv = self.masked_flip(Hp, Hp_mask)
+            Hp_inv = masked_flip(Hp, Hp_mask, flip_dim=0)
             right_hidden, right_alpha = self.right_match_rnn.forward(Hp_inv, Hq, Hq_mask)
             rtn_hidden = torch.cat((left_hidden, right_hidden), dim=2)
             rtn_alpha['right'] = right_alpha
@@ -356,7 +331,7 @@ class SeqPointer(torch.nn.Module):
         pass
 
 
-class BoundaryPointer(torch.nn.Module):
+class UniBoundaryPointer(torch.nn.Module):
     r"""
     boundary Pointer Net that output start and end possible answer position in context
     Args:
@@ -371,8 +346,8 @@ class BoundaryPointer(torch.nn.Module):
     """
     answer_len = 2
 
-    def __init__(self, mode, input_size, hidden_size, dropout_p):
-        super(BoundaryPointer, self).__init__()
+    def __init__(self, mode, input_size, hidden_size):
+        super(UniBoundaryPointer, self).__init__()
 
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -387,11 +362,7 @@ class BoundaryPointer(torch.nn.Module):
         else:
             raise ValueError('Wrong mode select %s, change to LSTM or GRU' % mode)
 
-        self.dropout = torch.nn.Dropout(p=dropout_p)
-
     def forward(self, Hr, Hr_mask, h_0=None):
-        Hr = self.dropout.forward(Hr)
-
         if h_0 is None:
             batch_size = Hr.shape[1]
             h_0 = torch.autograd.Variable(Hr.data.new(batch_size, self.hidden_size).zero_())
@@ -410,12 +381,38 @@ class BoundaryPointer(torch.nn.Module):
             hidden = self.hidden_cell.forward(context_beta, hidden)  # (batch, hidden_size), (batch, hidden_size)
 
         result = torch.stack(beta_out, dim=0)
+        return result
+
+
+class BoundaryPointer(torch.nn.Module):
+
+    def __init__(self, mode, input_size, hidden_size, bidirectional, dropout_p):
+        super(BoundaryPointer, self).__init__()
+        self.bidirectional = bidirectional
+
+        self.left_ptr_rnn = UniBoundaryPointer(mode, input_size, hidden_size)
+        if bidirectional:
+            self.right_ptr_rnn = UniBoundaryPointer(mode, input_size, hidden_size)
+
+        self.dropout = torch.nn.Dropout(p=dropout_p)
+
+    def forward(self, Hr, Hr_mask, h_0=None):
+        Hr = self.dropout.forward(Hr)
+
+        left_beta = self.left_ptr_rnn.forward(Hr, Hr_mask, h_0)     # todo: h_0 fix
+        rtn_beta = left_beta
+        if self.bidirectional:
+            Hr_inv = masked_flip(Hr, Hr_mask)   # mask don't need to flip
+            right_beta_inv = self.right_ptr_rnn.forward(Hr_inv, Hr_mask, h_0)
+            right_beta = masked_flip(right_beta_inv, Hr_mask, flip_dim=2)       # todo: check flip dim
+
+            rtn_beta = (left_beta + right_beta) / 2
 
         # todo: unexplainable
         new_mask = torch.neg((Hr_mask - 1) * 1e-6)  # mask replace zeros with 1e-6, make sure no gradient explosion
-        result = result + new_mask.unsqueeze(0)
+        rtn_beta = rtn_beta + new_mask.unsqueeze(0)
 
-        return result
+        return rtn_beta
 
 
 class MyRNNBase(torch.nn.Module):

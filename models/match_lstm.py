@@ -51,6 +51,7 @@ class MatchLSTMModel(torch.nn.Module):
         encoder_char_layers = global_config['model']['encoder_char_layers']
         self.enable_char = global_config['model']['enable_char']
 
+        ptr_bidirection = global_config['model']['ptr_bidirection']
         self.init_ptr_hidden_mode = global_config['model']['init_ptr_hidden']
         hidden_mode = global_config['model']['hidden_mode']
         gated_attention = global_config['model']['gated_attention']
@@ -109,6 +110,7 @@ class MatchLSTMModel(torch.nn.Module):
         self.pointer_net = BoundaryPointer(mode=hidden_mode,
                                            input_size=match_lstm_out_size,
                                            hidden_size=ptr_hidden_size,  # just to fit init hidden on encoder generate
+                                           bidirectional=ptr_bidirection,
                                            dropout_p=dropout_p)
 
         # pointer net init hidden generate
