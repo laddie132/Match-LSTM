@@ -25,13 +25,14 @@ class SquadDataset:
         self.__data = {}
         self.__attr = {}
         self.__meta_data = {}
-
         self.global_config = global_config
 
-        self.preprocess()  # whether preprocessing squad dataset
-        self.load_hdf5()
+        # whether preprocessing squad dataset
+        is_exist_dataset_h5 = os.path.exists(self.global_config['data']['dataset_h5'])
+        assert is_exist_dataset_h5, 'not found dataset hdf5 file in %s' % self.global_config['data']['dataset_h5']
+        self.__load_hdf5()
 
-    def load_hdf5(self):
+    def __load_hdf5(self):
         """
         load squad hdf5 file
         :return:
@@ -147,9 +148,9 @@ class SquadDataset:
 
         return cnt_batch
 
-    def batch_word_to_char(self, batch_wordid):
+    def __batch_word_to_char(self, batch_wordid):
         """
-        transform batch data with sentence of wordid to batch data wih sentence of char id
+        transform batch with sentence of wordid to batch data with sentence of char id
         :param batch_wordid: (batch, seq_len), torch tensor
         :return: (batch, seq_len, word_len), torch tensor
         """
@@ -164,18 +165,29 @@ class SquadDataset:
 
         return to_long_tensor(batch_char)
 
-    def preprocess(self):
+    def gen_batch_with_char(self, batch_data, enable_char, enable_cuda, volatile):
         """
-        preprocessing dataset to h5 file
+        word batch to generate char barch, also transform to torch variable, used in train or valid steps
+        :param batch_data: [bat_context, bat_question, bat_answer_range]
+        :param enable_char:
+        :param enable_cuda:
         :return:
         """
-        is_exist_dataset_h5 = os.path.exists(self.global_config['data']['dataset_h5'])
-        logger.info('%s dataset hdf5 file' % ("found" if is_exist_dataset_h5 else "not found"))
+        if not enable_char:
+            bat_context, bat_question, bat_answer_range = [to_variable(x, enable_cuda, volatile=True) for x in batch_data]
+            bat_context_char = None
+            bat_question_char = None
 
-        if not is_exist_dataset_h5:
-            logger.info('preprocess data...')
-            pdata = PreprocessData(self.global_config)
-            pdata.run()
+        else:
+            bat_context, bat_question, bat_answer_range = batch_data
+            bat_context_char = self.__batch_word_to_char(bat_context)
+            bat_question_char = self.__batch_word_to_char(bat_question)
+
+            bat_context, bat_question, bat_context_char, bat_question_char, bat_answer_range = \
+                [to_variable(x, enable_cuda, volatile=volatile) for x in
+                 [bat_context, bat_question, bat_context_char, bat_question_char, bat_answer_range]]
+
+        return bat_context, bat_question, bat_context_char, bat_question_char, bat_answer_range
 
     def sentence_id2word(self, s_id):
         """

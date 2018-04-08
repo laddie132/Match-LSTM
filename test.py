@@ -53,6 +53,7 @@ def main():
     # forward
     logger.info('forwarding...')
 
+    enable_char = global_config['model']['enable_char']
     batch_size = global_config['test']['batch_size']
     # batch_dev_data = dataset.get_dataloader_dev(batch_size)
     batch_dev_data = list(dataset.get_batch_dev(batch_size))
@@ -63,7 +64,8 @@ def main():
                                                  batch_data=batch_dev_data,
                                                  epoch=None,
                                                  enable_cuda=enable_cuda,
-                                                 batch_char_func=dataset.batch_word_to_char)
+                                                 enable_char=enable_char,
+                                                 batch_char_func=dataset.gen_batch_with_char)
     logger.info("test: ave_score_em=%.2f, ave_score_f1=%.2f, sum_loss=%.5f" % (score_em, score_f1, sum_loss))
     logging.info('finished.')
 

@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 def main():
-    logger.info('------------Analysis SquAD dataset--------------')
+    logger.info('------------Analysis SQuAD dataset--------------')
     logger.info('loading config file...')
     global_config = read_config()
 

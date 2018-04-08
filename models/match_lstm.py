@@ -122,7 +122,10 @@ class MatchLSTMModel(torch.nn.Module):
             raise ValueError('Wrong init_ptr_hidden mode select %s, change to pooling or linear'
                              % self.init_ptr_hidden_mode)
 
-    def forward(self, context, question, context_char, question_char):
+    def forward(self, context, question, context_char=None, question_char=None):
+        if self.enable_char:
+            assert context_char is not None and question_char is not None
+
         # get embedding: (seq_len, batch, embedding_size)
         context_vec, context_mask = self.embedding.forward(context)
         question_vec, question_mask = self.embedding.forward(question)

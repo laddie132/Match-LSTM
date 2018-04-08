@@ -79,6 +79,7 @@ def main():
     batch_dev_data = list(dataset.get_batch_dev(valid_batch_size))
 
     clip_grad_max = global_config['train']['clip_grad_norm']
+    enable_char = global_config['model']['enable_char']
 
     best_valid_f1 = None
     # every epoch
@@ -92,7 +93,8 @@ def main():
                                   epoch=epoch,
                                   clip_grad_max=clip_grad_max,
                                   enable_cuda=enable_cuda,
-                                  batch_char_func=dataset.batch_word_to_char)
+                                  enable_char=enable_char,
+                                  batch_char_func=dataset.gen_batch_with_char)
         logger.info('epoch=%d, sum_loss=%.5f' % (epoch, sum_loss))
 
         # evaluate
@@ -102,7 +104,8 @@ def main():
                                                                    batch_data=batch_dev_data,
                                                                    epoch=epoch,
                                                                    enable_cuda=enable_cuda,
-                                                                   batch_char_func=dataset.batch_word_to_char)
+                                                                   enable_char=enable_char,
+                                                                   batch_char_func=dataset.gen_batch_with_char)
         logger.info("epoch=%d, ave_score_em=%.2f, ave_score_f1=%.2f, sum_loss=%.5f" %
                     (epoch, valid_score_em, valid_score_f1, valid_loss))
 
@@ -118,9 +121,10 @@ def main():
     logger.info('finished.')
 
 
-def train_on_model(model, criterion, optimizer, batch_data, epoch, clip_grad_max, enable_cuda, batch_char_func=None):
+def train_on_model(model, criterion, optimizer, batch_data, epoch, clip_grad_max, enable_cuda, enable_char, batch_char_func):
     """
     train on every batch
+    :param enable_char:
     :param batch_char_func:
     :param model:
     :param criterion:
@@ -137,13 +141,8 @@ def train_on_model(model, criterion, optimizer, batch_data, epoch, clip_grad_max
         optimizer.zero_grad()
 
         # batch data
-        bat_context, bat_question, bat_answer_range = batch
-        bat_context_char = batch_char_func(bat_context)
-        bat_question_char = batch_char_func(bat_question)
-
         bat_context, bat_question, bat_context_char, bat_question_char, bat_answer_range = \
-            [to_variable(x, enable_cuda, volatile=False) for x in
-             [bat_context, bat_question, bat_context_char, bat_question_char, bat_answer_range]]
+            batch_char_func(batch, enable_char=enable_char, enable_cuda=enable_cuda, volatile=False)
 
         # forward
         ans_range_prop, _, _ = model.forward(bat_context, bat_question, bat_context_char, bat_question_char)
