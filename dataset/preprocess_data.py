@@ -34,6 +34,7 @@ class PreprocessData:
         self.__export_squad_path = ''
         self.__glove_path = ''
         self.__embedding_size = 300
+        self.__ignore_max_len = 10000
         self.__load_config(global_config)
 
         # preprocess config
@@ -65,6 +66,7 @@ class PreprocessData:
         self.__dev_path = data_config['dataset']['dev_path']
         self.__export_squad_path = data_config['dataset_h5']
         self.__glove_path = data_config['embedding_path']
+        self.__ignore_max_len = data_config['ignore_max_len']
         self.__embedding_size = int(global_config['model']['embedding_size'])
 
     def __read_json(self, path):
@@ -97,8 +99,11 @@ class PreprocessData:
             cur_context = question_grp['context']
             cur_qas = question_grp['qas']
 
-            self.__update_to_char(cur_context)
             cur_context_toke = nltk.word_tokenize(cur_context)
+            if len(cur_context_toke) > self.__ignore_max_len:  # some context token len too large, such as 766
+                continue
+
+            self.__update_to_char(cur_context)
             cur_context_ids = self.__sentence_to_id(cur_context_toke)
             self.__max_context_token_len = max(self.__max_context_token_len, len(cur_context_ids))
 
