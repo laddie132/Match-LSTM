@@ -174,7 +174,7 @@ class SquadDataset:
         :return:
         """
         if not enable_char:
-            bat_context, bat_question, bat_answer_range = [to_variable(x, enable_cuda, volatile=True) for x in batch_data]
+            bat_context, bat_question, bat_answer_range = [to_variable(x, enable_cuda, volatile=volatile) for x in batch_data]
             bat_context_char = None
             bat_question_char = None
 
