@@ -85,7 +85,7 @@ def draw_score(epoch, score_em, score_f1):
     plt.grid()
 
 
-def main(log_path):
+def main(log_path, x_gen=False):
     with open(log_path) as f_log:
         log_lines = f_log.readlines()
         value_log = log_lines
@@ -93,8 +93,10 @@ def main(log_path):
     epoch, train_loss = analysis_log_loss(value_log)
     epoch2, score_em, score_f1, eval_loss = analysis_log_score(value_log)
 
-    assert epoch == epoch2
+    assert epoch == epoch2, str(epoch) + ' ' + str(epoch2)
 
+    if x_gen:
+        epoch = [x for x in range(len(train_loss))]
     draw_loss(epoch, train_loss, eval_loss)
     draw_score(epoch, score_em, score_f1)
 
@@ -107,4 +109,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     print("analysising log '%s'" % args.log_path[0])
-    main(args.log_path[0])
+    main(args.log_path[0], x_gen=True)

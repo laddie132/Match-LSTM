@@ -193,6 +193,21 @@ class UniMatchRNN(torch.nn.Module):
             self.hidden_cell = torch.nn.GRUCell(input_size=2 * input_size, hidden_size=hidden_size)
         else:
             raise ValueError('Wrong mode select %s, change to LSTM or GRU' % mode)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        """
+        Here we reproduce Keras default initialization weights to initialize Embeddings/LSTM weights
+        """
+        ih = (param.data for name, param in self.named_parameters() if 'weight_ih' in name)
+        hh = (param.data for name, param in self.named_parameters() if 'weight_hh' in name)
+        b = (param.data for name, param in self.named_parameters() if 'bias' in name)
+        for t in ih:
+            torch.nn.init.xavier_uniform(t)
+        for t in hh:
+            torch.nn.init.orthogonal(t)
+        for t in b:
+            torch.nn.init.constant(t, 0)
 
     def forward(self, Hp, Hq, Hq_mask):
         batch_size = Hp.shape[1]
@@ -328,7 +343,7 @@ class SeqPointer(torch.nn.Module):
         super(SeqPointer, self).__init__()
 
     def forward(self, *input):
-        pass
+        return NotImplementedError
 
 
 class UniBoundaryPointer(torch.nn.Module):
@@ -361,6 +376,21 @@ class UniBoundaryPointer(torch.nn.Module):
             self.hidden_cell = torch.nn.GRUCell(input_size, hidden_size)
         else:
             raise ValueError('Wrong mode select %s, change to LSTM or GRU' % mode)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        """
+        Here we reproduce Keras default initialization weights to initialize Embeddings/LSTM weights
+        """
+        ih = (param.data for name, param in self.named_parameters() if 'weight_ih' in name)
+        hh = (param.data for name, param in self.named_parameters() if 'weight_hh' in name)
+        b = (param.data for name, param in self.named_parameters() if 'bias' in name)
+        for t in ih:
+            torch.nn.init.xavier_uniform(t)
+        for t in hh:
+            torch.nn.init.orthogonal(t)
+        for t in b:
+            torch.nn.init.constant(t, 0)
 
     def forward(self, Hr, Hr_mask, h_0=None):
         if h_0 is None:
@@ -404,7 +434,7 @@ class BoundaryPointer(torch.nn.Module):
         if self.bidirectional:
             Hr_inv = masked_flip(Hr, Hr_mask)   # mask don't need to flip
             right_beta_inv = self.right_ptr_rnn.forward(Hr_inv, Hr_mask, h_0)
-            right_beta = masked_flip(right_beta_inv, Hr_mask, flip_dim=2)       # todo: check flip dim
+            right_beta = masked_flip(right_beta_inv, Hr_mask, flip_dim=2)
 
             rtn_beta = (left_beta + right_beta) / 2
 
@@ -456,6 +486,21 @@ class MyRNNBase(torch.nn.Module):
         else:
             raise ValueError('Wrong mode select %s, change to LSTM or GRU' % mode)
         self.dropout = torch.nn.Dropout(p=dropout_p)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        """
+        Here we reproduce Keras default initialization weights to initialize Embeddings/LSTM weights
+        """
+        ih = (param.data for name, param in self.named_parameters() if 'weight_ih' in name)
+        hh = (param.data for name, param in self.named_parameters() if 'weight_hh' in name)
+        b = (param.data for name, param in self.named_parameters() if 'bias' in name)
+        for t in ih:
+            torch.nn.init.xavier_uniform(t)
+        for t in hh:
+            torch.nn.init.orthogonal(t)
+        for t in b:
+            torch.nn.init.constant(t, 0)
 
     def forward(self, v, mask):
         # get sorted v
