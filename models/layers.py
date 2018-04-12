@@ -68,7 +68,10 @@ class CharEmbedding(torch.nn.Module):
         n_embedding = self.load_dataset_h5()
 
         self.embedding_layer = torch.nn.Embedding(num_embeddings=n_embedding, embedding_dim=embedding_size, padding_idx=0)
-        self.embedding_layer.weight.requires_grad = trainable
+
+        # notice that cannot directly assign value. When in predict, it's always False.
+        if not trainable:
+            self.embedding_layer.weight.requires_grad = False
 
     def load_dataset_h5(self):
         with h5py.File(self.dataset_h5_path, 'r') as f:
