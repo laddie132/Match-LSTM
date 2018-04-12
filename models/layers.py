@@ -419,6 +419,7 @@ class BoundaryPointer(torch.nn.Module):
     def __init__(self, mode, input_size, hidden_size, bidirectional, dropout_p):
         super(BoundaryPointer, self).__init__()
         self.bidirectional = bidirectional
+        self.hidden_size = hidden_size
 
         self.left_ptr_rnn = UniBoundaryPointer(mode, input_size, hidden_size)
         if bidirectional:
@@ -429,11 +430,18 @@ class BoundaryPointer(torch.nn.Module):
     def forward(self, Hr, Hr_mask, h_0=None):
         Hr = self.dropout.forward(Hr)
 
-        left_beta = self.left_ptr_rnn.forward(Hr, Hr_mask, h_0)     # todo: h_0 fix
+        # split h_0 to left and right
+        h_0_left = h_0
+        h_0_right = h_0
+        if h_0 is not None and self.bidirectional:
+            assert self.hidden_size * 2 == h_0.shape[1]
+            h_0_left, h_0_right = list(torch.split(h_0, self.hidden_size, dim=1))
+
+        left_beta = self.left_ptr_rnn.forward(Hr, Hr_mask, h_0_left)
         rtn_beta = left_beta
         if self.bidirectional:
             Hr_inv = masked_flip(Hr, Hr_mask)   # mask don't need to flip
-            right_beta_inv = self.right_ptr_rnn.forward(Hr_inv, Hr_mask, h_0)
+            right_beta_inv = self.right_ptr_rnn.forward(Hr_inv, Hr_mask, h_0_right)
             right_beta = masked_flip(right_beta_inv, Hr_mask, flip_dim=2)
 
             rtn_beta = (left_beta + right_beta) / 2
@@ -562,7 +570,8 @@ class AttentionPooling(torch.nn.Module):
         self.linear_v = torch.nn.Linear(input_size, input_size)
         self.linear_t = torch.nn.Linear(input_size, 1)
 
-        self.vr = torch.nn.Parameter(torch.FloatTensor(1, 1, input_size))    # also to train
+        # todo: replace vr and linear_v with one parameter
+        self.vr = torch.nn.Parameter(torch.FloatTensor(1, 1, input_size))
         self.reset_parameters()
 
     def reset_parameters(self):

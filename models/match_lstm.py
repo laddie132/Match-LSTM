@@ -106,6 +106,10 @@ class MatchLSTMModel(torch.nn.Module):
                                               dropout_p=dropout_p)
             match_lstm_out_size = hidden_size * 2
 
+        # when pooling, just fill the pooling result to left direction of Ptr-Net, only for unidirectional
+        # when bi-pooling, split the pooling result to left and right part, and sent to Ptr-Net, only for bidirectional
+        assert self.init_ptr_hidden_mode != 'pooling' or not ptr_bidirection, 'pooling should with ptr-unidirectional'
+        assert self.init_ptr_hidden_mode != 'bi-pooling' or ptr_bidirection, 'bi-pooling should with ptr-bidirectional'
         ptr_hidden_size = encode_out_size if self.init_ptr_hidden_mode == 'pooling' else hidden_size
         self.pointer_net = BoundaryPointer(mode=hidden_mode,
                                            input_size=match_lstm_out_size,
@@ -114,10 +118,10 @@ class MatchLSTMModel(torch.nn.Module):
                                            dropout_p=dropout_p)
 
         # pointer net init hidden generate
-        if self.init_ptr_hidden_mode == 'pooling':
-            self.init_ptr_hidden = AttentionPooling(ptr_hidden_size)
+        if self.init_ptr_hidden_mode == 'pooling' or self.init_ptr_hidden_mode == 'bi-pooling':
+            self.init_ptr_hidden = AttentionPooling(encode_out_size)
         elif self.init_ptr_hidden_mode == 'linear':
-            self.init_ptr_hidden = nn.Linear(match_lstm_out_size, ptr_hidden_size)
+            self.init_ptr_hidden = nn.Linear(match_lstm_out_size, hidden_size)
         elif self.init_ptr_hidden_mode == 'None':
             pass
         else:
@@ -164,7 +168,7 @@ class MatchLSTMModel(torch.nn.Module):
 
         # pointer net init hidden: (batch, hidden_size)
         ptr_net_hidden = None
-        if self.init_ptr_hidden_mode == 'pooling':
+        if self.init_ptr_hidden_mode == 'pooling' or self.init_ptr_hidden_mode == 'bi-pooling':
             ptr_net_hidden = self.init_ptr_hidden.forward(question_encode, question_mask)
         elif self.init_ptr_hidden_mode == 'linear':
             ptr_net_hidden = self.init_ptr_hidden.forward(qt_aware_last_hidden)

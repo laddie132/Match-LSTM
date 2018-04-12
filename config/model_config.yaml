@@ -20,14 +20,14 @@ model:
   encoder_word_layers: 3
   encoder_char_layers: 1
   encoder_bidirection: True
-  enable_char: True
+  enable_char: False
 
   match_lstm_bidirection: True
   self_match_lstm_bidirection: True
   self_match_lstm: True
 
   birnn_after_self: True
-  init_ptr_hidden: pooling # pooling, linear, None
+  init_ptr_hidden: bi-pooling # pooling, bi-pooling, linear, None
   ptr_bidirection: True
   answer_search: True
 

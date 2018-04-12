@@ -371,7 +371,7 @@ def masked_flip(vin, mask, flip_dim=0):
         cur_tensor = vin[:, i, :]
         cur_length = length[i]
 
-        idx = list(range(cur_length - 1, -1, -1)) + list(range(cur_length, cur_tensor.shape[0]))
+        idx = list(range(cur_length - 1, -1, -1)) + list(range(cur_length, vin.shape[flip_dim]))
         idx = torch.autograd.Variable(torch.LongTensor(idx))
         if vin.is_cuda:
             idx = idx.cuda()
