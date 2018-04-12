@@ -31,7 +31,10 @@ class MatchLSTMModel(torch.nn.Module):
         super(MatchLSTMModel, self).__init__()
 
         # set config
-        embedding_size = global_config['model']['embedding_size']
+        word_embedding_size = global_config['model']['word_embedding_size']
+        char_embedding_size = global_config['model']['char_embedding_size']
+        encoder_word_layers = global_config['model']['encoder_word_layers']
+        encoder_char_layers = global_config['model']['encoder_char_layers']
         hidden_size = global_config['model']['hidden_size']
         self.enable_cuda = global_config['train']['enable_cuda']
 
@@ -45,13 +48,14 @@ class MatchLSTMModel(torch.nn.Module):
         self_match_lstm_direction_num = 2 if self_match_lstm_bidirection else 1
         self.enable_self_match = global_config['model']['self_match_lstm']
 
-        self.enable_birnn_after_self = global_config['model']['birnn_after_self']
-
-        encoder_word_layers = global_config['model']['encoder_word_layers']
-        encoder_char_layers = global_config['model']['encoder_char_layers']
         self.enable_char = global_config['model']['enable_char']
+        char_trainable = global_config['model']['char_trainable']
+
+        # when mix-encode, use r-net methods, that concat char-encoding and word-embedding to represent sequence
+        self.mix_encode = global_config['model']['mix_encode']
 
         ptr_bidirection = global_config['model']['ptr_bidirection']
+        self.enable_birnn_after_self = global_config['model']['birnn_after_self']
         self.init_ptr_hidden_mode = global_config['model']['init_ptr_hidden']
         hidden_mode = global_config['model']['hidden_mode']
         gated_attention = global_config['model']['gated_attention']
@@ -61,23 +65,29 @@ class MatchLSTMModel(torch.nn.Module):
 
         # construct model
         self.embedding = GloveEmbedding(dataset_h5_path=global_config['data']['dataset_h5'])
+        encode_in_size = word_embedding_size
+
         if self.enable_char:
-            self.char_embedding = CharEmbedding(dataset_h5_path=global_config['data']['dataset_h5'])
+            self.char_embedding = CharEmbedding(dataset_h5_path=global_config['data']['dataset_h5'],
+                                                embedding_size=char_embedding_size,
+                                                trainable=char_trainable)
+            self.char_encoder = CharEncoder(mode=hidden_mode,
+                                            input_size=char_embedding_size,
+                                            hidden_size=hidden_size,
+                                            num_layers=encoder_char_layers,
+                                            bidirectional=encoder_bidirection,
+                                            dropout_p=dropout_p)
+            if self.mix_encode:
+                encode_in_size += hidden_size * encoder_direction_num
 
         self.encoder = MyRNNBase(mode=hidden_mode,
-                                 input_size=embedding_size,
+                                 input_size=encode_in_size,
                                  hidden_size=hidden_size,
                                  num_layers=encoder_word_layers,
                                  bidirectional=encoder_bidirection,
                                  dropout_p=dropout_p)
         encode_out_size = hidden_size * encoder_direction_num
-        if self.enable_char:
-            self.char_encoder = CharEncoder(mode=hidden_mode,
-                                            input_size=embedding_size,
-                                            hidden_size=hidden_size,
-                                            num_layers=encoder_char_layers,
-                                            bidirectional=encoder_bidirection,
-                                            dropout_p=dropout_p)
+        if self.enable_char and not self.mix_encode:
             encode_out_size *= 2
 
         self.match_rnn = MatchRNN(mode=hidden_mode,
@@ -109,7 +119,8 @@ class MatchLSTMModel(torch.nn.Module):
         # when pooling, just fill the pooling result to left direction of Ptr-Net, only for unidirectional
         # when bi-pooling, split the pooling result to left and right part, and sent to Ptr-Net, only for bidirectional
         assert self.init_ptr_hidden_mode != 'pooling' or not ptr_bidirection, 'pooling should with ptr-unidirectional'
-        assert self.init_ptr_hidden_mode != 'bi-pooling' or ptr_bidirection, 'bi-pooling should with ptr-bidirectional'
+        assert self.init_ptr_hidden_mode != 'bi-pooling' or ptr_bidirection or not self.mix_encode,\
+            'bi-pooling should with ptr-bidirectional and word-char mix encoding'
         ptr_hidden_size = encode_out_size if self.init_ptr_hidden_mode == 'pooling' else hidden_size
         self.pointer_net = BoundaryPointer(mode=hidden_mode,
                                            input_size=match_lstm_out_size,
@@ -136,20 +147,26 @@ class MatchLSTMModel(torch.nn.Module):
         context_vec, context_mask = self.embedding.forward(context)
         question_vec, question_mask = self.embedding.forward(question)
 
+        # char-level embedding: (seq_len, batch, char_embedding_size)
+        if self.enable_char:
+            context_emb_char, context_char_mask = self.char_embedding.forward(context_char)
+            question_emb_char, question_char_mask = self.char_embedding.forward(question_char)
+
+            context_vec_char = self.char_encoder.forward(context_emb_char, context_char_mask, context_mask)
+            question_vec_char = self.char_encoder.forward(question_emb_char, question_char_mask, question_mask)
+
+            if self.mix_encode:
+                context_vec = torch.cat((context_vec, context_vec_char), dim=-1)
+                question_vec = torch.cat((question_vec, question_vec_char), dim=-1)
+
         # encode: (seq_len, batch, hidden_size)
         context_encode, _ = self.encoder.forward(context_vec, context_mask)
         question_encode, _ = self.encoder.forward(question_vec, question_mask)
 
-        # char-level embedding and encode: (seq_len, batch, hidden_size)
-        if self.enable_char:
-            context_vec_char, context_char_mask = self.char_embedding.forward(context_char)
-            question_vec_char, question_char_mask = self.char_embedding.forward(question_char)
-
-            context_encode_char = self.char_encoder.forward(context_vec_char, context_char_mask, context_mask)
-            question_encode_char = self.char_encoder.forward(question_vec_char, question_char_mask, question_mask)
-
-            context_encode = torch.cat((context_encode, context_encode_char), dim=-1)
-            question_encode = torch.cat((question_encode, question_encode_char), dim=-1)
+        # char-level encode: (seq_len, batch, hidden_size)
+        if self.enable_char and not self.mix_encode:
+            context_encode = torch.cat((context_encode, context_vec_char), dim=-1)
+            question_encode = torch.cat((question_encode, question_vec_char), dim=-1)
 
         # match lstm: (seq_len, batch, hidden_size)
         qt_aware_ct, qt_aware_last_hidden, match_alpha = self.match_rnn.forward(context_encode, context_mask,

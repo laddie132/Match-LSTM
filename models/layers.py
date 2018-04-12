@@ -62,20 +62,19 @@ class CharEmbedding(torch.nn.Module):
         **output** (batch, seq_len, word_len, embedding_size): tensor contain char embeddings
         **mask** (batch, seq_len, word_len)
     """
-    def __init__(self, dataset_h5_path):
+    def __init__(self, dataset_h5_path, embedding_size, trainable=False):
         super(CharEmbedding, self).__init__()
         self.dataset_h5_path = dataset_h5_path
-        n_embedding, len_embedding = self.load_dataset_h5()
+        n_embedding = self.load_dataset_h5()
 
-        self.embedding_layer = torch.nn.Embedding(num_embeddings=n_embedding, embedding_dim=len_embedding, padding_idx=0)
-        self.embedding_layer.weight.requires_grad = False
+        self.embedding_layer = torch.nn.Embedding(num_embeddings=n_embedding, embedding_dim=embedding_size, padding_idx=0)
+        self.embedding_layer.weight.requires_grad = trainable
 
     def load_dataset_h5(self):
         with h5py.File(self.dataset_h5_path, 'r') as f:
             word_dict_size = f.attrs['char_dict_size']
-            embedding_size = f.attrs['embedding_size']  # using the same embedding size on word-level and char-level
 
-        return int(word_dict_size), int(embedding_size)
+        return int(word_dict_size)
 
     def forward(self, x):
         batch_size, seq_len, word_len = x.shape
