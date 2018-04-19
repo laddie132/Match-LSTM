@@ -3,9 +3,11 @@
 
 __author__ = 'han'
 
+import json
 import os
 import torch
 import logging
+import argparse
 from dataset.squad_dataset import SquadDataset
 from models.match_lstm import MatchLSTMModel
 from utils.load_config import init_logging, read_config
@@ -16,7 +18,7 @@ init_logging()
 logger = logging.getLogger(__name__)
 
 
-def main():
+def main(out_path):
     logger.info('------------Match-LSTM Evaluate--------------')
     logger.info('loading config file...')
     global_config = read_config()
@@ -58,17 +60,66 @@ def main():
     # batch_dev_data = dataset.get_dataloader_dev(batch_size)
     batch_dev_data = list(dataset.get_batch_dev(batch_size))
 
-    criterion = MyNLLLoss()
-    score_em, score_f1, sum_loss = eval_on_model(model=model,
-                                                 criterion=criterion,
-                                                 batch_data=batch_dev_data,
-                                                 epoch=None,
-                                                 enable_cuda=enable_cuda,
-                                                 enable_char=enable_char,
-                                                 batch_char_func=dataset.gen_batch_with_char)
-    logger.info("test: ave_score_em=%.2f, ave_score_f1=%.2f, sum_loss=%.5f" % (score_em, score_f1, sum_loss))
+    # to just evaluate score or write answer to file
+    if out_path is None:
+        criterion = MyNLLLoss()
+        score_em, score_f1, sum_loss = eval_on_model(model=model,
+                                                     criterion=criterion,
+                                                     batch_data=batch_dev_data,
+                                                     epoch=None,
+                                                     enable_cuda=enable_cuda,
+                                                     enable_char=enable_char,
+                                                     batch_char_func=dataset.gen_batch_with_char)
+        logger.info("test: ave_score_em=%.2f, ave_score_f1=%.2f, sum_loss=%.5f" % (score_em, score_f1, sum_loss))
+    else:
+        predict_ans = predict_on_model(model=model,
+                                       batch_data=batch_dev_data,
+                                       enable_cuda=enable_cuda,
+                                       enable_char=enable_char,
+                                       batch_char_func=dataset.gen_batch_with_char,
+                                       id_to_word_func=dataset.sentence_id2word)
+        samples_id = dataset.get_all_samples_id_dev()
+        ans_with_id = dict(zip(samples_id, predict_ans))
+
+        logging.info('writing predict answer to file %s' % out_path)
+        with open(out_path, 'w') as f:
+            json.dump(ans_with_id, f)
+
     logging.info('finished.')
 
 
+def predict_on_model(model, batch_data, enable_cuda, enable_char, batch_char_func, id_to_word_func):
+    batch_cnt = len(batch_data)
+    answer = []
+
+    for bnum, batch in enumerate(batch_data):
+
+        # batch data
+        bat_context, bat_question, bat_context_char, bat_question_char, bat_answer_range = \
+            batch_char_func(batch, enable_char=enable_char, enable_cuda=enable_cuda, volatile=True)
+
+        _, tmp_ans_range, _ = model.forward(bat_context, bat_question, bat_context_char, bat_question_char)
+        tmp_context_ans = zip(bat_context.cpu().data.numpy(),
+                              tmp_ans_range.cpu().data.numpy())
+        tmp_ans = [id_to_word_func(c[a[0]:(a[1] + 1)]) for c, a in tmp_context_ans]
+        answer += tmp_ans
+
+        logging.info('batch=%d/%d' % (bnum, batch_cnt))
+
+        # manual release memory
+        del bat_context, bat_question, bat_answer_range, bat_context_char, bat_question_char
+        del tmp_ans_range
+        if enable_cuda:
+            torch.cuda.empty_cache()
+
+    return answer
+
+
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description="evaluate on the model")
+    parser.add_argument('--output', '-o', required=False, nargs=1, dest='out_path')
+    args = parser.parse_args()
+
+    out_path = args.out_path[0] if args.out_path else None
+
+    main(out_path=out_path)

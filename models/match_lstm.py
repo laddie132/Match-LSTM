@@ -23,7 +23,8 @@ class MatchLSTMModel(torch.nn.Module):
         question_char: (batch, seq_len, word_len)
 
     Outputs:
-        answer_range: (batch, answer_len, context_len)
+        ans_range_prop: (batch, 2, context_len)
+        ans_range: (batch, 2)
         vis_alpha: to show on visdom
     """
 

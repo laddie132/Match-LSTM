@@ -67,7 +67,7 @@ class PreprocessData:
         self.__export_squad_path = data_config['dataset_h5']
         self.__glove_path = data_config['embedding_path']
         self.__ignore_max_len = data_config['ignore_max_len']
-        self.__embedding_size = int(global_config['model']['embedding_size'])
+        self.__embedding_size = int(global_config['model']['word_embedding_size'])
 
     def __read_json(self, path):
         """
@@ -94,6 +94,7 @@ class PreprocessData:
         contexts_wid = []
         questions_wid = []
         answers_range_wid = []  # each answer use the [start,end] representation, all the answer horizontal concat
+        samples_id = []
 
         for question_grp in contexts_qas:
             cur_context = question_grp['context']
@@ -116,6 +117,7 @@ class PreprocessData:
 
                 contexts_wid.append(cur_context_ids)
                 questions_wid.append(cur_question_ids)
+                samples_id.append(qa['id'])
 
                 # find all the answer positions
                 cur_answers = qa['answers']
@@ -167,7 +169,8 @@ class PreprocessData:
 
         return {'context': contexts_wid,
                 'question': questions_wid,
-                'answer_range': answers_range_wid}
+                'answer_range': answers_range_wid,
+                'samples_id': samples_id}
 
     def __sentence_to_id(self, sentence):
         """
@@ -258,7 +261,8 @@ class PreprocessData:
             data_grp = f_data.create_group(key)
 
             for sub_key, sub_value in value.items():
-                data = data_grp.create_dataset(sub_key, sub_value.shape, dtype=sub_value.dtype,
+                cur_dtype = str_dt if sub_value.dtype.type is np.str_ else sub_value.dtype
+                data = data_grp.create_dataset(sub_key, sub_value.shape, dtype=cur_dtype,
                                                **self.__compress_option)
                 data[...] = sub_value
 
@@ -298,7 +302,8 @@ class PreprocessData:
                                       maxlen=self.__max_question_token_len,
                                       padding='post',
                                       value=self.padding_idx),
-            'answer_range': np.array(train_cache_nopad['answer_range'])}
+            'answer_range': np.array(train_cache_nopad['answer_range']),
+            'samples_id': np.array(train_cache_nopad['samples_id'])}
         self.__data['dev'] = {
             'context': pad_sequences(dev_cache_nopad['context'],
                                      maxlen=self.__max_context_token_len,
@@ -311,7 +316,8 @@ class PreprocessData:
             'answer_range': pad_sequences(dev_cache_nopad['answer_range'],
                                           maxlen=self.__max_answer_len,
                                           padding='post',
-                                          value=self.answer_padding_idx)}
+                                          value=self.answer_padding_idx),
+            'samples_id': np.array(dev_cache_nopad['samples_id'])}
 
         logger.info('export to hdf5 file...')
         self.__export_squad_hdf5()

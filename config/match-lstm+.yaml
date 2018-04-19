@@ -15,23 +15,23 @@ model:
   dropout_p: 0.2
 
   word_embedding_size: 300
-  char_embedding_size: 64
-  hidden_size: 45  # one-direction
+  char_embedding_size: 300
+  hidden_size: 150  # one-direction
 
-  encoder_word_layers: 3
+  encoder_word_layers: 1
   encoder_char_layers: 1
   encoder_bidirection: True
-  char_trainable: True
+  char_trainable: False
   enable_char: True
-  mix_encode: True # whether word and char the same encoder
+  mix_encode: False # whether word and char the same encoder
 
   match_lstm_bidirection: True
   self_match_lstm_bidirection: True
-  self_match_lstm: True
+  self_match_lstm: False
 
-  birnn_after_self: True
-  init_ptr_hidden: bi-pooling # pooling, bi-pooling, linear, None
-  ptr_bidirection: True
+  birnn_after_self: False
+  init_ptr_hidden: linear # pooling, bi-pooling, linear, None
+  ptr_bidirection: False
   answer_search: True
 
   hidden_mode: GRU # LSTM or GRU

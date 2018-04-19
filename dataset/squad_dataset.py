@@ -43,7 +43,7 @@ class SquadDataset:
 
             for name in ['train', 'dev']:
                 self.__data[name] = {}
-                for sub_name in ['context', 'question', 'answer_range']:
+                for sub_name in ['context', 'question', 'answer_range', 'samples_id']:
                     self.__data[name][sub_name] = np.array(f_data[name][sub_name])
 
             for key, value in f.attrs.items():
@@ -125,6 +125,21 @@ class SquadDataset:
 
             i = j
             yield bat_tensor_new
+
+    def get_all_samples_id_train(self):
+        return self.get_all_samples_id('train')
+
+    def get_all_samples_id_dev(self):
+        return self.get_all_samples_id('dev')
+
+    def get_all_samples_id(self, type):
+        """
+        get samples id of 'train' or 'dev' data
+        :param type:
+        :return:
+        """
+        data = self.__data[type]
+        return data['samples_id']
 
     def get_train_batch_cnt(self, batch_size):
         """
