@@ -5,7 +5,6 @@ __author__ = 'han'
 
 import torch
 import logging
-from utils.functions import to_variable, del_zeros_right
 from dataset.preprocess_data import PreprocessData
 
 logger = logging.getLogger(__name__)
@@ -70,6 +69,13 @@ def eval_on_model(model, criterion, batch_data, epoch, enable_cuda, enable_char,
     logger.info("eval data size: %d" % dev_data_size)
     return score_em, score_f1, sum_loss
 
+
+# ---------------------------------------------------------------------------------
+# Here is the two evaluate function modified from standard file 'evaluate-v1.1.py'.
+# We just use it to show how model effect during training or evaluating.
+# If you want the standard score, please use 'test.py' to output answer json file
+# and then use 'evaluate-v1.1.py' to evaluate
+# ---------------------------------------------------------------------------------
 
 def evaluate_em(y_pred, y_true):
     """

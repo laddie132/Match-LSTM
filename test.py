@@ -18,10 +18,10 @@ init_logging()
 logger = logging.getLogger(__name__)
 
 
-def main(out_path):
+def main(config_path, out_path):
     logger.info('------------Match-LSTM Evaluate--------------')
     logger.info('loading config file...')
-    global_config = read_config()
+    global_config = read_config(config_path)
 
     # set random seed
     seed = global_config['model']['random_seed']
@@ -101,7 +101,7 @@ def predict_on_model(model, batch_data, enable_cuda, enable_char, batch_char_fun
         _, tmp_ans_range, _ = model.forward(bat_context, bat_question, bat_context_char, bat_question_char)
         tmp_context_ans = zip(bat_context.cpu().data.numpy(),
                               tmp_ans_range.cpu().data.numpy())
-        tmp_ans = [id_to_word_func(c[a[0]:(a[1] + 1)]) for c, a in tmp_context_ans]
+        tmp_ans = [' '.join(id_to_word_func(c[a[0]:(a[1] + 1)])) for c, a in tmp_context_ans]
         answer += tmp_ans
 
         logging.info('batch=%d/%d' % (bnum, batch_cnt))
@@ -117,9 +117,8 @@ def predict_on_model(model, batch_data, enable_cuda, enable_char, batch_char_fun
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="evaluate on the model")
-    parser.add_argument('--output', '-o', required=False, nargs=1, dest='out_path')
+    parser.add_argument('--config', '-c', required=False, dest='config_path', default='config/model_config.yaml')
+    parser.add_argument('--output', '-o', required=False, dest='out_path')
     args = parser.parse_args()
 
-    out_path = args.out_path[0] if args.out_path else None
-
-    main(out_path=out_path)
+    main(config_path=args.config_path, out_path=args.out_path)
