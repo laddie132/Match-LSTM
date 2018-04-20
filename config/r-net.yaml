@@ -41,7 +41,7 @@ train:
   batch_size: 32
   valid_batch_size: 32
   epoch: 30
-  enable_cuda: False
+  enable_cuda: True
 
   optimizer: 'adadelta'  # adam, sgd, adamax, adadelta(default is adamax)
   learning_rate: 0.002  # only for sgd
@@ -49,4 +49,4 @@ train:
 
 test:
   batch_size: 32
-  enable_cuda: False
+  enable_cuda: True
