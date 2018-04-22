@@ -36,6 +36,7 @@ model:
     mix_encode: False # whether word and char the same encoder
 
   interaction:
+    mlp_attention: False
     gated_attention: True
     match_lstm_bidirection: True
 
@@ -61,4 +62,4 @@ train:
 
 test:
   batch_size: 32
-  enable_cuda: True
+  enable_cuda: False

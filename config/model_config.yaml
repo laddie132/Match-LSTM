@@ -36,6 +36,7 @@ model:
     mix_encode: True # whether word and char the same encoder
 
   interaction:
+    mlp_attention: False  # mlp-attention and gated-attention only choose one
     gated_attention: True
     match_lstm_bidirection: True
 

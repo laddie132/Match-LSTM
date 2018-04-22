@@ -56,6 +56,7 @@ class MatchLSTMModel(torch.nn.Module):
         self.enable_self_match = global_config['model']['interaction']['enable_self_match']
         self.enable_birnn_after_self = global_config['model']['interaction']['birnn_after_self']
         gated_attention = global_config['model']['interaction']['gated_attention']
+        mlp_attention = global_config['model']['interaction']['mlp_attention']
 
         match_lstm_direction_num = 2 if match_lstm_bidirection else 1
         self_match_lstm_direction_num = 2 if self_match_lstm_bidirection else 1
@@ -105,6 +106,7 @@ class MatchLSTMModel(torch.nn.Module):
                                   hidden_size=hidden_size,
                                   bidirectional=match_lstm_bidirection,
                                   gated_attention=gated_attention,
+                                  mlp_attention=mlp_attention,
                                   dropout_p=dropout_p)
         match_lstm_out_size = hidden_size * match_lstm_direction_num
 
@@ -114,6 +116,7 @@ class MatchLSTMModel(torch.nn.Module):
                                            hidden_size=hidden_size,
                                            bidirectional=self_match_lstm_bidirection,
                                            gated_attention=gated_attention,
+                                           mlp_attention=mlp_attention,
                                            dropout_p=dropout_p)
             match_lstm_out_size = hidden_size * self_match_lstm_direction_num
 

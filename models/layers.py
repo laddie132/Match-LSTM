@@ -268,16 +268,18 @@ class UniMatchRNN(torch.nn.Module):
         alpha(batch, question_len, context_len): used for visual show
     """
 
-    def __init__(self, mode, input_size, hidden_size, gated_attention=False):
+    def __init__(self, mode, input_size, hidden_size, gated_attention, mlp_attention):
         super(UniMatchRNN, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
+        self.gated_attention = gated_attention
+        self.mlp_attention = mlp_attention
+
+        assert gated_attention != mlp_attention, 'mlp-attention and gated-attention only choose one'
 
         self.attention = MatchRNNAttention(input_size, hidden_size)
 
-        self.gated_attention = gated_attention
-
-        if self.gated_attention:
+        if self.gated_attention or self.mlp_attention:
             self.gated_linear = torch.nn.Linear(2 * input_size, 2 * input_size)
 
         self.mode = mode
@@ -323,9 +325,14 @@ class UniMatchRNN(torch.nn.Module):
                 .squeeze(1)  # (batch, input_size)
             cur_z = torch.cat([cur_hp, question_alpha], dim=1)  # (batch, 2*input_size)
 
+            # mlp
+            if self.mlp_attention:
+                cur_z = F.sigmoid(self.gated_linear.forward(cur_z))
+
             # gated
             if self.gated_attention:
-                cur_z = F.sigmoid(self.gated_linear.forward(cur_z))
+                gate = F.sigmoid(self.gated_linear.forward(cur_z))
+                cur_z = gate * cur_z
 
             cur_hidden = self.hidden_cell.forward(cur_z, hidden[t])  # (batch, hidden_size), when lstm output tuple
             hidden.append(cur_hidden)
@@ -345,6 +352,7 @@ class MatchRNN(torch.nn.Module):
         - hidden_size: The number of features in the hidden state Hr
         - bidirectional: If ``True``, becomes a bidirectional RNN. Default: ``False``
         - gated_attention: If ``True``, gated attention used, see more on R-NET
+        - mlp_attention: Customized parameter. If ``True``, add one mlp layer after attention before rnn
 
     Inputs:
         Hp(context_len, batch, input_size): context encoded
@@ -356,14 +364,14 @@ class MatchRNN(torch.nn.Module):
         Hr(context_len, batch, hidden_size * num_directions): question-aware context representation
     """
 
-    def __init__(self, mode, input_size, hidden_size, bidirectional, gated_attention, dropout_p):
+    def __init__(self, mode, input_size, hidden_size, bidirectional, gated_attention, mlp_attention, dropout_p):
         super(MatchRNN, self).__init__()
         self.bidirectional = bidirectional
         self.num_directions = 1 if bidirectional else 2
 
-        self.left_match_rnn = UniMatchRNN(mode, input_size, hidden_size, gated_attention)
+        self.left_match_rnn = UniMatchRNN(mode, input_size, hidden_size, gated_attention, mlp_attention)
         if bidirectional:
-            self.right_match_rnn = UniMatchRNN(mode, input_size, hidden_size, gated_attention)
+            self.right_match_rnn = UniMatchRNN(mode, input_size, hidden_size, gated_attention, mlp_attention)
 
         self.dropout = torch.nn.Dropout(p=dropout_p)
 
