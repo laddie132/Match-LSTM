@@ -24,7 +24,7 @@ def main():
     global_config = read_config()
 
     # set random seed
-    seed = global_config['model']['random_seed']
+    seed = global_config['model']['global']['random_seed']
     enable_cuda = global_config['test']['enable_cuda']
     torch.manual_seed(seed)
 
@@ -64,12 +64,14 @@ def main():
     answer3 = ["attend school at the Higher Real Gymnasium", 'to attend school']
 
     # change here to select questions
-    question = question1
-    answer = answer1[0]
+    question = question3
+    answer = answer3[0]
 
     # preprocess
     context_token = nltk.word_tokenize(context)
     question_token = nltk.word_tokenize(question)
+
+    a = np.array(context_token)
 
     context_id = dataset.sentence_word2id(context_token)
     question_id = dataset.sentence_word2id(question_token)
@@ -93,34 +95,39 @@ def main():
     logging.info('Predict Answer: ' + ' '.join(out_answer))
 
     # to show on visdom
-    x_left = vis_param['match']['left'][0, :, :48].cpu().data.numpy()
-    x_right = flip(vis_param['match']['right'], 2)[0, :, :48].cpu().data.numpy()
+    s = 0
+    e = 48
+
+    x_left = vis_param['match']['left'][0, :, s:e].cpu().data.numpy()
+    x_right = flip(vis_param['match']['right'], 2)[0, :, s:e].cpu().data.numpy()
 
     draw_heatmap_sea(x_left,
-                     xlabels=context_token[:48],
+                     xlabels=context_token[s:e],
                      ylabels=question_token,
                      answer=answer,
-                     save_path='data/test-left.png')
+                     save_path='data/test-left.png',
+                     bottom=0.45)
     draw_heatmap_sea(x_right,
-                     xlabels=context_token[:48],
+                     xlabels=context_token[s:e],
                      ylabels=question_token,
                      answer=answer,
-                     save_path='data/test-right.png')
+                     save_path='data/test-right.png',
+                     bottom=0.45)
 
-    if global_config['model']['self_match_lstm']:
-        x_self_left = vis_param['self']['left'][0, :48, :48].cpu().data.numpy()
-        x_self_right = flip(vis_param['self']['right'], 2)[0, :48, :48].cpu().data.numpy()
+    if global_config['model']['interaction']['self_match_lstm']:
+        x_self_left = vis_param['self']['left'][0, s:e, s:e].cpu().data.numpy()
+        x_self_right = flip(vis_param['self']['right'], 2)[0, s:e, s:e].cpu().data.numpy()
 
         draw_heatmap_sea(x_self_left,
-                         xlabels=context_token[:48],
-                         ylabels=context_token[:48],
+                         xlabels=context_token[s:e],
+                         ylabels=context_token[s:e],
                          answer=answer,
                          save_path='data/test-self-left.png',
                          inches=(11, 11),
                          bottom=0.2)
         draw_heatmap_sea(x_self_right,
-                         xlabels=context_token[:48],
-                         ylabels=context_token[:48],
+                         xlabels=context_token[s:e],
+                         ylabels=context_token[s:e],
                          answer=answer,
                          save_path='data/test-self-right.png',
                          inches=(11, 11),

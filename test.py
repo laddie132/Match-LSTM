@@ -24,7 +24,7 @@ def main(config_path, out_path):
     global_config = read_config(config_path)
 
     # set random seed
-    seed = global_config['model']['random_seed']
+    seed = global_config['model']['global']['random_seed']
     enable_cuda = global_config['test']['enable_cuda']
     torch.manual_seed(seed)
 
@@ -55,7 +55,7 @@ def main(config_path, out_path):
     # forward
     logger.info('forwarding...')
 
-    enable_char = global_config['model']['enable_char']
+    enable_char = global_config['model']['encoder']['enable_char']
     batch_size = global_config['test']['batch_size']
     # batch_dev_data = dataset.get_dataloader_dev(batch_size)
     batch_dev_data = list(dataset.get_batch_dev(batch_size))

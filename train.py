@@ -24,7 +24,7 @@ def main():
     global_config = read_config()
 
     # set random seed
-    seed = global_config['model']['random_seed']
+    seed = global_config['model']['global']['random_seed']
     enable_cuda = global_config['train']['enable_cuda']
     torch.manual_seed(seed)
 
@@ -79,7 +79,7 @@ def main():
     batch_dev_data = list(dataset.get_batch_dev(valid_batch_size))
 
     clip_grad_max = global_config['train']['clip_grad_norm']
-    enable_char = global_config['model']['enable_char']
+    enable_char = global_config['model']['encoder']['enable_char']
 
     best_valid_f1 = None
     # every epoch

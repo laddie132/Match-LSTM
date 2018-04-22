@@ -3,7 +3,7 @@ data:
     train_path: data/SQuAD/train-v1.1.json
     dev_path: data/SQuAD/dev-v1.1.json
   dataset_h5: data/squad_glove.h5
-  ignore_max_len: 100000 # context token len > ignore_max_len will be dropped
+  ignore_max_len: 700 # context token len > ignore_max_len will be dropped
 
   embedding_path: data/glove.840B.300d.zip
 
@@ -11,31 +11,42 @@ data:
   checkpoint_path: data/checkpoint
 
 model:
-  random_seed: 123
-  dropout_p: 0.4
+  global:
+    random_seed: 123
+    dropout_p: 0.4
+    hidden_size: 150  # one-direction
+    hidden_mode: LSTM # LSTM or GRU
 
-  word_embedding_size: 300
-  char_embedding_size: 64
-  hidden_size: 150  # one-direction
+  encoder:
+    # char-level
+    char_layers: 1
+    char_embedding_size: 64
+    char_cnn_filter: [(2, 75), (3, 75), (4, 75), (5, 75)]
+    char_encode_type: 'CNN' # 'LSTM' or 'CNN'
+    char_trainable: True
+    enable_char: False
 
-  encoder_word_layers: 1
-  encoder_char_layers: 1
-  encoder_bidirection: True
-  char_trainable: False
-  enable_char: False
-  mix_encode: True # whether word and char the same encoder
+    # word-level
+    word_layers: 1
+    word_embedding_size: 300
 
-  match_lstm_bidirection: True
-  self_match_lstm_bidirection: True
-  self_match_lstm: False
+    # other
+    bidirection: True
+    mix_encode: True # whether word and char the same encoder
 
-  birnn_after_self: False
-  init_ptr_hidden: linear # pooling, bi-pooling, linear, None
-  ptr_bidirection: False
-  answer_search: True
+  interaction:
+    gated_attention: False
+    match_lstm_bidirection: True
 
-  hidden_mode: LSTM # LSTM or GRU
-  gated_attention: False
+    enable_self_match: False
+    self_match_bidirection: True
+
+    birnn_after_self: False
+
+  output:
+    init_ptr_hidden: linear # pooling, bi-pooling, linear, None
+    ptr_bidirection: False
+    answer_search: True
 
 train:
   batch_size: 32
