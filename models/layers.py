@@ -62,12 +62,14 @@ class CharEmbedding(torch.nn.Module):
         **output** (batch, seq_len, word_len, embedding_size): tensor contain char embeddings
         **mask** (batch, seq_len, word_len)
     """
+
     def __init__(self, dataset_h5_path, embedding_size, trainable=False):
         super(CharEmbedding, self).__init__()
         self.dataset_h5_path = dataset_h5_path
         n_embedding = self.load_dataset_h5()
 
-        self.embedding_layer = torch.nn.Embedding(num_embeddings=n_embedding, embedding_dim=embedding_size, padding_idx=0)
+        self.embedding_layer = torch.nn.Embedding(num_embeddings=n_embedding, embedding_dim=embedding_size,
+                                                  padding_idx=0)
 
         # notice that cannot directly assign value. When in predict, it's always False.
         if not trainable:
@@ -83,7 +85,7 @@ class CharEmbedding(torch.nn.Module):
         batch_size, seq_len, word_len = x.shape
         x = x.view(-1, word_len)
 
-        mask = compute_mask(x, 0)   # char-level padding idx is zero
+        mask = compute_mask(x, 0)  # char-level padding idx is zero
         x_emb = self.embedding_layer.forward(x)
         x_emb = x_emb.view(batch_size, seq_len, word_len, -1)
         mask = mask.view(batch_size, seq_len, word_len)
@@ -101,6 +103,7 @@ class CharEncoder(torch.nn.Module):
     Outputs
         **output** (seq_len, batch, hidden_size)
     """
+
     def __init__(self, mode, input_size, hidden_size, num_layers, bidirectional, dropout_p):
         super(CharEncoder, self).__init__()
 
@@ -117,11 +120,100 @@ class CharEncoder(torch.nn.Module):
         x = x.transpose(0, 1)
         char_mask = char_mask.view(-1, word_len)
 
-        _, x_encode = self.encoder.forward(x, char_mask)     # (batch*seq_len, hidden_size)
-        x_encode = x_encode.view(batch_size, seq_len, -1)   # (batch, seq_len, hidden_size)
+        _, x_encode = self.encoder.forward(x, char_mask)  # (batch*seq_len, hidden_size)
+        x_encode = x_encode.view(batch_size, seq_len, -1)  # (batch, seq_len, hidden_size)
         x_encode = x_encode * word_mask.unsqueeze(-1)
 
         return x_encode.transpose(0, 1)
+
+
+class CharCNN(torch.nn.Module):
+    """
+    Char-level CNN
+    Inputs:
+        **input** (batch, seq_len, word_len, embedding_size)
+        **char_mask** (batch, seq_len, word_len)
+        **word_mask** (batch, seq_len)
+    Outputs
+        **output** (seq_len, batch, hidden_size)
+    """
+
+    def __init__(self, emb_size, filters_size, filters_num, dropout_p):
+        super(CharCNN, self).__init__()
+
+        self.dropout = torch.nn.Dropout(p=dropout_p)
+        self.cnns = torch.nn.ModuleList(
+            [torch.nn.Conv2d(1, fn, (fw, emb_size)) for fw, fn in zip(filters_size, filters_num)])
+
+    def forward(self, x, char_mask, word_mask):
+        x = self.dropout(x)
+
+        batch_size, seq_len, word_len, embedding_size = x.shape
+        x = x.view(-1, word_len, embedding_size).unsqueeze(1)  # (N, 1, word_len, embedding_size)
+
+        x = [F.relu(cnn(x)).squeeze(-1) for cnn in self.cnns]  # (N, Cout, word_len - fw + 1) * fn
+        x = [torch.max(cx, 2)[0] for cx in x]  # (N, Cout) * fn
+        x = torch.cat(x, dim=1)  # (N, hidden_size)
+
+        x = x.view(batch_size, seq_len, -1)  # (batch, seq_len, hidden_size)
+        x = x * word_mask.unsqueeze(-1)
+
+        return x.transpose(0, 1)
+
+
+class Highway(torch.nn.Module):
+    def __init__(self, in_size, n_layers, dropout_p):
+        super(Highway, self).__init__()
+        self.n_layers = n_layers
+        self.dropout_p = dropout_p
+
+        self.normal_layer = torch.nn.ModuleList([torch.nn.Linear(in_size, in_size) for _ in range(n_layers)])
+        self.gate_layer = torch.nn.ModuleList([torch.nn.Linear(in_size, in_size) for _ in range(n_layers)])
+
+    def forward(self, x):
+        for i in range(self.n_layers):
+            x = F.dropout(x, p=self.dropout_p, training=self.training)
+
+            normal_layer_ret = F.relu(self.normal_layer[i](x))
+            gate = F.sigmoid(self.gate_layer[i](x))
+
+            x = gate * normal_layer_ret + (1 - gate) * x
+        return x
+
+
+class CharCNNEncoder(torch.nn.Module):
+    """
+    char-level cnn encoder with highway networks
+    Inputs:
+        **input** (batch, seq_len, word_len, embedding_size)
+        **char_mask** (batch, seq_len, word_len)
+        **word_mask** (batch, seq_len)
+    Outputs
+        **output** (seq_len, batch, hidden_size)
+    """
+    def __init__(self, emb_size, hidden_size, filters_size, filters_num, dropout_p, enable_highway=True):
+        super(CharCNNEncoder, self).__init__()
+        self.enable_highway = enable_highway
+        self.hidden_size = hidden_size
+
+        self.cnn = CharCNN(emb_size=emb_size,
+                           filters_size=filters_size,
+                           filters_num=filters_num,
+                           dropout_p=dropout_p)
+
+        if enable_highway:
+            self.highway = Highway(in_size=hidden_size,
+                                   n_layers=2,
+                                   dropout_p=dropout_p)
+
+    def forward(self, x, char_mask, word_mask):
+        o = self.cnn(x, char_mask, word_mask)
+
+        assert o.shape[2] == self.hidden_size
+        if self.enable_highway:
+            o = self.highway(o)
+
+        return o
 
 
 class MatchRNNAttention(torch.nn.Module):
@@ -238,7 +330,7 @@ class UniMatchRNN(torch.nn.Module):
             cur_hidden = self.hidden_cell.forward(cur_z, hidden[t])  # (batch, hidden_size), when lstm output tuple
             hidden.append(cur_hidden)
 
-        vis_alpha = torch.stack(vis_alpha, dim=2)   # (batch, question_len, context_len)
+        vis_alpha = torch.stack(vis_alpha, dim=2)  # (batch, question_len, context_len)
 
         hidden_state = list(map(lambda x: x[0], hidden)) if self.mode == 'LSTM' else hidden
         result = torch.stack(hidden_state[1:], dim=0)  # (context_len, batch, hidden_size)
@@ -276,7 +368,7 @@ class MatchRNN(torch.nn.Module):
         self.dropout = torch.nn.Dropout(p=dropout_p)
 
     def forward(self, Hp, Hp_mask, Hq, Hq_mask):
-        Hp = self.dropout(Hp)       # todo: move it to rnn of each direction
+        Hp = self.dropout(Hp)  # todo: move it to rnn of each direction
         Hq = self.dropout(Hq)
 
         left_hidden, left_alpha = self.left_match_rnn.forward(Hp, Hq, Hq_mask)
@@ -442,7 +534,7 @@ class BoundaryPointer(torch.nn.Module):
         left_beta = self.left_ptr_rnn.forward(Hr, Hr_mask, h_0_left)
         rtn_beta = left_beta
         if self.bidirectional:
-            Hr_inv = masked_flip(Hr, Hr_mask)   # mask don't need to flip
+            Hr_inv = masked_flip(Hr, Hr_mask)  # mask don't need to flip
             right_beta_inv = self.right_ptr_rnn.forward(Hr_inv, Hr_mask, h_0_right)
             right_beta = masked_flip(right_beta_inv, Hr_mask, flip_dim=2)
 
@@ -565,6 +657,7 @@ class AttentionPooling(torch.nn.Module):
     Outputs: output, output_mask
         - **output** (batch, input_size): tensor containing the output features
     """
+
     def __init__(self, input_size):
         super(AttentionPooling, self).__init__()
 
@@ -585,11 +678,11 @@ class AttentionPooling(torch.nn.Module):
         wvq_vq = self.linear_v(self.vr)
 
         q_tanh = F.tanh(wuq_uq + wvq_vq)
-        q_s = self.linear_t(q_tanh)\
-            .squeeze(2)\
+        q_s = self.linear_t(q_tanh) \
+            .squeeze(2) \
             .transpose(0, 1)  # (batch, seq_len)
 
-        alpha = masked_softmax(q_s, mask, dim=1)    # (batch, seq_len)
-        rq = torch.bmm(alpha.unsqueeze(1), uq.transpose(0, 1))\
-            .squeeze(1)     # (batch, input_size)
+        alpha = masked_softmax(q_s, mask, dim=1)  # (batch, seq_len)
+        rq = torch.bmm(alpha.unsqueeze(1), uq.transpose(0, 1)) \
+            .squeeze(1)  # (batch, input_size)
         return rq

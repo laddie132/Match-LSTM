@@ -32,37 +32,37 @@ class MatchLSTMModel(torch.nn.Module):
         super(MatchLSTMModel, self).__init__()
 
         # set config
+        hidden_size = global_config['model']['global']['hidden_size']
+        hidden_mode = global_config['model']['global']['hidden_mode']
+        dropout_p = global_config['model']['global']['dropout_p']
+
         word_embedding_size = global_config['model']['encoder']['word_embedding_size']
         char_embedding_size = global_config['model']['encoder']['char_embedding_size']
         encoder_word_layers = global_config['model']['encoder']['word_layers']
         encoder_char_layers = global_config['model']['encoder']['char_layers']
-        hidden_size = global_config['model']['global']['hidden_size']
-        self.enable_cuda = global_config['train']['enable_cuda']
+        char_trainable = global_config['model']['encoder']['char_trainable']
+        char_type = global_config['model']['encoder']['char_encode_type']
+        char_cnn_filter_size = global_config['model']['encoder']['char_cnn_filter_size']
+        char_cnn_filter_num = global_config['model']['encoder']['char_cnn_filter_num']
+        self.enable_char = global_config['model']['encoder']['enable_char']
 
+        # when mix-encode, use r-net methods, that concat char-encoding and word-embedding to represent sequence
+        self.mix_encode = global_config['model']['encoder']['mix_encode']
         encoder_bidirection = global_config['model']['encoder']['bidirection']
         encoder_direction_num = 2 if encoder_bidirection else 1
 
         match_lstm_bidirection = global_config['model']['interaction']['match_lstm_bidirection']
-        match_lstm_direction_num = 2 if match_lstm_bidirection else 1
-
         self_match_lstm_bidirection = global_config['model']['interaction']['self_match_bidirection']
-        self_match_lstm_direction_num = 2 if self_match_lstm_bidirection else 1
         self.enable_self_match = global_config['model']['interaction']['enable_self_match']
+        self.enable_birnn_after_self = global_config['model']['interaction']['birnn_after_self']
+        gated_attention = global_config['model']['interaction']['gated_attention']
 
-        self.enable_char = global_config['model']['encoder']['enable_char']
-        char_trainable = global_config['model']['encoder']['char_trainable']
-
-        # when mix-encode, use r-net methods, that concat char-encoding and word-embedding to represent sequence
-        self.mix_encode = global_config['model']['encoder']['mix_encode']
+        match_lstm_direction_num = 2 if match_lstm_bidirection else 1
+        self_match_lstm_direction_num = 2 if self_match_lstm_bidirection else 1
 
         ptr_bidirection = global_config['model']['output']['ptr_bidirection']
-        self.enable_birnn_after_self = global_config['model']['interaction']['birnn_after_self']
         self.init_ptr_hidden_mode = global_config['model']['output']['init_ptr_hidden']
-        hidden_mode = global_config['model']['global']['hidden_mode']
-        gated_attention = global_config['model']['interaction']['gated_attention']
         self.enable_search = global_config['model']['output']['answer_search']
-
-        dropout_p = global_config['model']['global']['dropout_p']
 
         # construct model
         self.embedding = GloveEmbedding(dataset_h5_path=global_config['data']['dataset_h5'])
@@ -72,12 +72,21 @@ class MatchLSTMModel(torch.nn.Module):
             self.char_embedding = CharEmbedding(dataset_h5_path=global_config['data']['dataset_h5'],
                                                 embedding_size=char_embedding_size,
                                                 trainable=char_trainable)
-            self.char_encoder = CharEncoder(mode=hidden_mode,
-                                            input_size=char_embedding_size,
-                                            hidden_size=hidden_size,
-                                            num_layers=encoder_char_layers,
-                                            bidirectional=encoder_bidirection,
-                                            dropout_p=dropout_p)
+            if char_type == 'LSTM':
+                self.char_encoder = CharEncoder(mode=hidden_mode,
+                                                input_size=char_embedding_size,
+                                                hidden_size=hidden_size,
+                                                num_layers=encoder_char_layers,
+                                                bidirectional=encoder_bidirection,
+                                                dropout_p=dropout_p)
+            elif char_type == 'CNN':
+                self.char_encoder = CharCNNEncoder(emb_size=char_embedding_size,
+                                                   hidden_size=word_embedding_size,
+                                                   filters_size=char_cnn_filter_size,
+                                                   filters_num=char_cnn_filter_num,
+                                                   dropout_p=dropout_p)
+            else:
+                raise ValueError('Unrecognized char_encode_type of value %s' % char_type)
             if self.mix_encode:
                 encode_in_size += hidden_size * encoder_direction_num
 
@@ -120,7 +129,7 @@ class MatchLSTMModel(torch.nn.Module):
         # when pooling, just fill the pooling result to left direction of Ptr-Net, only for unidirectional
         # when bi-pooling, split the pooling result to left and right part, and sent to Ptr-Net, only for bidirectional
         assert self.init_ptr_hidden_mode != 'pooling' or not ptr_bidirection, 'pooling should with ptr-unidirectional'
-        assert self.init_ptr_hidden_mode != 'bi-pooling' or ptr_bidirection or not self.mix_encode,\
+        assert self.init_ptr_hidden_mode != 'bi-pooling' or ptr_bidirection or not self.mix_encode, \
             'bi-pooling should with ptr-bidirectional and word-char mix encoding'
         ptr_hidden_size = encode_out_size if self.init_ptr_hidden_mode == 'pooling' else hidden_size
         self.pointer_net = BoundaryPointer(mode=hidden_mode,

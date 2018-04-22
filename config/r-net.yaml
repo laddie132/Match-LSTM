@@ -21,7 +21,8 @@ model:
     # char-level
     char_layers: 1
     char_embedding_size: 64
-    char_cnn_filter: [(2, 75), (3, 75), (4, 75), (5, 75)]
+    char_cnn_filter_size: [2, 3, 4, 5]
+    char_cnn_filter_num: [75, 75, 75, 75]
     char_encode_type: 'LSTM' # 'LSTM' or 'CNN'
     char_trainable: True
     enable_char: True

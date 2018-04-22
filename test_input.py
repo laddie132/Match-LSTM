@@ -114,7 +114,7 @@ def main():
                      save_path='data/test-right.png',
                      bottom=0.45)
 
-    if global_config['model']['interaction']['self_match_lstm']:
+    if global_config['model']['interaction']['enable_self_match']:
         x_self_left = vis_param['self']['left'][0, s:e, s:e].cpu().data.numpy()
         x_self_right = flip(vis_param['self']['right'], 2)[0, s:e, s:e].cpu().data.numpy()
 

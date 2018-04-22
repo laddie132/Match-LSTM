@@ -13,21 +13,22 @@ data:
 model:
   global:
     random_seed: 123
-    dropout_p: 0.2
-    hidden_size: 45  # one-direction
+    dropout_p: 0.4
+    hidden_size: 150  # one-direction
     hidden_mode: GRU # LSTM or GRU
 
   encoder:
     # char-level
     char_layers: 1
     char_embedding_size: 64
-    char_cnn_filter: [(2, 75), (3, 75), (4, 75), (5, 75)]
+    char_cnn_filter_size: [2, 3, 4, 5]
+    char_cnn_filter_num: [75, 75, 75, 75]
     char_encode_type: 'CNN' # 'LSTM' or 'CNN'
     char_trainable: True
     enable_char: True
 
     # word-level
-    word_layers: 3
+    word_layers: 1
     word_embedding_size: 300
 
     # other
@@ -38,14 +39,14 @@ model:
     gated_attention: True
     match_lstm_bidirection: True
 
-    enable_self_match: True
+    enable_self_match: False
     self_match_bidirection: True
 
-    birnn_after_self: True
+    birnn_after_self: False
 
   output:
-    init_ptr_hidden: bi-pooling # pooling, bi-pooling, linear, None
-    ptr_bidirection: True
+    init_ptr_hidden: linear # pooling, bi-pooling, linear, None
+    ptr_bidirection: False
     answer_search: True
 
 train:
