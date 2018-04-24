@@ -64,8 +64,8 @@ def main():
     answer3 = ["attend school at the Higher Real Gymnasium", 'to attend school']
 
     # change here to select questions
-    question = question3
-    answer = answer3[0]
+    question = question1
+    answer = answer1[0]
 
     # preprocess
     context_token = nltk.word_tokenize(context)
@@ -99,7 +99,7 @@ def main():
     e = 48
 
     x_left = vis_param['match']['left'][0, :, s:e].cpu().data.numpy()
-    x_right = flip(vis_param['match']['right'], 2)[0, :, s:e].cpu().data.numpy()
+    x_right = vis_param['match']['right'][0, :, s:e].cpu().data.numpy()
 
     draw_heatmap_sea(x_left,
                      xlabels=context_token[s:e],
@@ -116,7 +116,7 @@ def main():
 
     if global_config['model']['interaction']['enable_self_match']:
         x_self_left = vis_param['self']['left'][0, s:e, s:e].cpu().data.numpy()
-        x_self_right = flip(vis_param['self']['right'], 2)[0, s:e, s:e].cpu().data.numpy()
+        x_self_right = vis_param['self']['right'][0, s:e, s:e].cpu().data.numpy()
 
         draw_heatmap_sea(x_self_left,
                          xlabels=context_token[s:e],

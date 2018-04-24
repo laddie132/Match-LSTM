@@ -385,7 +385,14 @@ class MatchRNN(torch.nn.Module):
 
         if self.bidirectional:
             Hp_inv = masked_flip(Hp, Hp_mask, flip_dim=0)
-            right_hidden, right_alpha = self.right_match_rnn.forward(Hp_inv, Hq, Hq_mask)
+            right_hidden_inv, right_alpha_inv = self.right_match_rnn.forward(Hp_inv, Hq, Hq_mask)
+
+            # flip back to normal sequence
+            right_alpha_inv = right_alpha_inv.transpose(0, 1)   # make sure right flip
+            right_alpha = masked_flip(right_alpha_inv, Hp_mask, flip_dim=2)
+            right_alpha = right_alpha.transpose(0, 1)
+            right_hidden = masked_flip(right_hidden_inv, Hp_mask, flip_dim=0)
+
             rtn_hidden = torch.cat((left_hidden, right_hidden), dim=2)
             rtn_alpha['right'] = right_alpha
 
