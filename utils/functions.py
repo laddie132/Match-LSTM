@@ -4,43 +4,9 @@
 __author__ = 'han'
 
 import torch
-from torch.autograd import Variable
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
-
-
-def init_hidden(num_layers_directions, batch, hidden_size, enable_cuda):
-    """
-    - notice: replaced by function `tensor.new.zero_()`
-    lstm init hidden out, state
-    :param num_layers_directions: num_layers \* num_directions
-    :param batch: 
-    :param hidden_size: 
-    :return: 
-    """
-    if enable_cuda:
-        return (Variable(torch.zeros(num_layers_directions, batch, hidden_size)).cuda(),
-                Variable(torch.zeros(num_layers_directions, batch, hidden_size)).cuda())
-
-    return (Variable(torch.zeros(num_layers_directions, batch, hidden_size)),
-            Variable(torch.zeros(num_layers_directions, batch, hidden_size)))
-
-
-def init_hidden_cell(batch, hidden_size, enable_cuda):
-    """
-    - notice: replaced by function `tensor.new.zero_()`
-    lstm init hidden out, state
-    :param batch:
-    :param hidden_size:
-    :return:
-    """
-    if enable_cuda:
-        return (Variable(torch.zeros(batch, hidden_size)).cuda(),
-                Variable(torch.zeros(batch, hidden_size)).cuda())
-
-    return (Variable(torch.zeros(batch, hidden_size)),
-            Variable(torch.zeros(batch, hidden_size)))
 
 
 def pad_sequences(sequences, maxlen=None, dtype='int32', padding='pre', truncating='pre', value=0.):
@@ -104,41 +70,13 @@ def pad_sequences(sequences, maxlen=None, dtype='int32', padding='pre', truncati
     return x
 
 
-def to_long_variable(np_array, enable_cuda=False, volatile=False):
-    """
-    convert a numpy array to Torch Variable with LongTensor
-    :param volatile:
-    :param np_array:
-    :param enable_cuda:
-    :return:
-    """
-    if enable_cuda:
-        return Variable(torch.from_numpy(np_array).type(torch.LongTensor), volatile=volatile).cuda()
-
-    return Variable(torch.from_numpy(np_array).type(torch.LongTensor), volatile=volatile)
-
-
 def to_long_tensor(np_array):
     """
     convert to long torch tensor
     :param np_array:
     :return:
     """
-    return torch.from_numpy(np_array).type(torch.LongTensor)
-
-
-def to_variable(tensor, enable_cuda=False, volatile=False):
-    """
-    convert to torch variable
-    :param volatile:
-    :param tensor:
-    :param enable_cuda:
-    :return:
-    """
-    if enable_cuda:
-        return Variable(tensor, volatile=volatile).cuda()
-
-    return Variable(tensor, volatile=volatile)
+    return torch.from_numpy(np_array).type(torch.long)
 
 
 def count_parameters(model):
@@ -171,18 +109,15 @@ def compute_mask(v, padding_idx=0):
     return mask
 
 
-def generate_mask(batch_length, enable_cuda=False):
+def generate_mask(batch_length, device):
     """
     generate mask with given length of each element in batch
     :param batch_length:
-    :param enable_cuda:
+    :param device:
     :return:
     """
     sum_one = np.sum(np.array(batch_length))
-
-    one = Variable(torch.ones(int(sum_one)))
-    if enable_cuda:
-        one = one.cuda()
+    one = torch.ones(int(sum_one)).to(device)
 
     mask_packed = torch.nn.utils.rnn.PackedSequence(one, batch_length)
     mask, _ = torch.nn.utils.rnn.pad_packed_sequence(mask_packed)
@@ -289,7 +224,7 @@ def answer_search(answer_prop, mask, max_tokens=15):
     # get min length
     lengths = mask.data.eq(1).long().sum(1).squeeze()
     min_length, _ = torch.min(lengths, 0)
-    min_length = min_length[0]
+    min_length = min_length.item()
 
     # max move steps
     max_move = max_tokens + context_len - min_length
@@ -297,7 +232,7 @@ def answer_search(answer_prop, mask, max_tokens=15):
 
     ans_s_p = answer_prop[:, 0, :]
     ans_e_p = answer_prop[:, 1, :]
-    b_zero = torch.autograd.Variable(answer_prop.data.new(batch_size, 1).zero_())
+    b_zero = answer_prop.new_zeros(batch_size, 1)
 
     # each step, move ans-start-prop matrix to right with one element
     ans_s_e_p_lst = []
@@ -329,7 +264,7 @@ def flip(tensor, flip_dim=0):
     :return:
     """
     idx = [i for i in range(tensor.size(flip_dim) - 1, -1, -1)]
-    idx = torch.autograd.Variable(torch.LongTensor(idx))
+    idx = tensor.new_tensor(idx, dtype=torch.long)
     if tensor.is_cuda:
         idx = idx.cuda()
     inverted_tensor = tensor.index_select(flip_dim, idx)
@@ -363,7 +298,7 @@ def masked_flip(vin, mask, flip_dim=0):
     :param flip_dim: dim to flip on
     :return:
     """
-    length = mask.data.eq(1).long().sum(1).squeeze()  # todo: speed up, vectoration
+    length = mask.data.eq(1).long().sum(1)  # todo: speed up, vectoration
     batch_size = vin.shape[1]
 
     flip_list = []
@@ -372,9 +307,7 @@ def masked_flip(vin, mask, flip_dim=0):
         cur_length = length[i]
 
         idx = list(range(cur_length - 1, -1, -1)) + list(range(cur_length, vin.shape[flip_dim]))
-        idx = torch.autograd.Variable(torch.LongTensor(idx))
-        if vin.is_cuda:
-            idx = idx.cuda()
+        idx = vin.new_tensor(idx, dtype=torch.long)
 
         cur_inv_tensor = cur_tensor.unsqueeze(1).index_select(flip_dim, idx).squeeze(1)
         flip_list.append(cur_inv_tensor)

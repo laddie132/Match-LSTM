@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from dataset.squad_dataset import SquadDataset
 from models.match_lstm import MatchLSTMModel
 from utils.load_config import init_logging, read_config
-from utils.functions import to_long_variable, count_parameters, draw_heatmap_sea, flip
+from utils.functions import to_long_tensor, count_parameters, draw_heatmap_sea
 
 init_logging()
 logger = logging.getLogger(__name__)
@@ -25,16 +25,15 @@ def main():
 
     # set random seed
     seed = global_config['model']['global']['random_seed']
-    enable_cuda = global_config['test']['enable_cuda']
     torch.manual_seed(seed)
+
+    torch.no_grad()  # make sure all tensors below have require_grad=False
 
     logger.info('reading squad dataset...')
     dataset = SquadDataset(global_config)
 
     logger.info('constructing model...')
     model = MatchLSTMModel(global_config)
-    if enable_cuda:
-        model = model.cuda()
     model.eval()  # let training = False, make sure right dropout
 
     logging.info('model parameters count: %d' % count_parameters(model))
@@ -79,7 +78,7 @@ def main():
     context_id_char = dataset.sentence_char2id(context_token)
     question_id_char = dataset.sentence_char2id(question_token)
 
-    context_var, question_var, context_var_char, question_var_char = [to_long_variable(x, volatile=True).unsqueeze(0)
+    context_var, question_var, context_var_char, question_var_char = [to_long_tensor(x).unsqueeze(0)
                                                                       for x in [context_id, question_id,
                                                                                 context_id_char, question_id_char]]
 

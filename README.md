@@ -1,4 +1,4 @@
-# MachineComprehension
+# MRC-PyTorch
 
 Here we implement the MatchLSTM (Wang and Jiang, 2016) model and R-Net(MSRA, 2017) model on SQuAD (Rajpurkar et al., 2016).
 
@@ -8,7 +8,7 @@ Maybe there are some details different from initial paper, we just try our own u
 
 - python3
 - anaconda
-- [pytorch0.3](https://github.com/pytorch/pytorch/tree/v0.3.1)
+- [pytorch0.4](https://github.com/pytorch/pytorch/tree/v0.4.0)
 - [GloVe word embeddings](https://nlp.stanford.edu/projects/glove/)
 
 ## Usage
@@ -59,5 +59,5 @@ Not finished yet.
 
 ## License
 
-[MIT](https://github.com/laddie132/MachineComprehension/blob/master/LICENSE)
+[MIT](https://github.com/laddie132/MRC-PyTorch/blob/master/LICENSE)
 

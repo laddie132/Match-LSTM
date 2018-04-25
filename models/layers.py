@@ -295,22 +295,22 @@ class UniMatchRNN(torch.nn.Module):
         """
         Here we reproduce Keras default initialization weights to initialize Embeddings/LSTM weights
         """
-        ih = (param.data for name, param in self.named_parameters() if 'weight_ih' in name)
-        hh = (param.data for name, param in self.named_parameters() if 'weight_hh' in name)
-        b = (param.data for name, param in self.named_parameters() if 'bias' in name)
+        ih = (param for name, param in self.named_parameters() if 'weight_ih' in name)
+        hh = (param for name, param in self.named_parameters() if 'weight_hh' in name)
+        b = (param for name, param in self.named_parameters() if 'bias' in name)
         for t in ih:
-            torch.nn.init.xavier_uniform(t)
+            torch.nn.init.xavier_uniform_(t)
         for t in hh:
-            torch.nn.init.orthogonal(t)
+            torch.nn.init.orthogonal_(t)
         for t in b:
-            torch.nn.init.constant(t, 0)
+            torch.nn.init.constant_(t, 0)
 
     def forward(self, Hp, Hq, Hq_mask):
         batch_size = Hp.shape[1]
         context_len = Hp.shape[0]
 
         # init hidden with the same type of input data
-        h_0 = torch.autograd.Variable(Hq.data.new(batch_size, self.hidden_size).zero_())
+        h_0 = Hq.new_zeros(batch_size, self.hidden_size)
         hidden = [(h_0, h_0)] if self.mode == 'LSTM' else [h_0]
         vis_alpha = []
 
@@ -491,20 +491,20 @@ class UniBoundaryPointer(torch.nn.Module):
         """
         Here we reproduce Keras default initialization weights to initialize Embeddings/LSTM weights
         """
-        ih = (param.data for name, param in self.named_parameters() if 'weight_ih' in name)
-        hh = (param.data for name, param in self.named_parameters() if 'weight_hh' in name)
-        b = (param.data for name, param in self.named_parameters() if 'bias' in name)
+        ih = (param for name, param in self.named_parameters() if 'weight_ih' in name)
+        hh = (param for name, param in self.named_parameters() if 'weight_hh' in name)
+        b = (param for name, param in self.named_parameters() if 'bias' in name)
         for t in ih:
-            torch.nn.init.xavier_uniform(t)
+            torch.nn.init.xavier_uniform_(t)
         for t in hh:
-            torch.nn.init.orthogonal(t)
+            torch.nn.init.orthogonal_(t)
         for t in b:
-            torch.nn.init.constant(t, 0)
+            torch.nn.init.constant_(t, 0)
 
     def forward(self, Hr, Hr_mask, h_0=None):
         if h_0 is None:
             batch_size = Hr.shape[1]
-            h_0 = torch.autograd.Variable(Hr.data.new(batch_size, self.hidden_size).zero_())
+            h_0 = Hr.new_zeros(batch_size, self.hidden_size)
 
         hidden = (h_0, h_0) if self.mode == 'LSTM' else h_0
         beta_out = []
@@ -609,29 +609,21 @@ class MyRNNBase(torch.nn.Module):
         """
         Here we reproduce Keras default initialization weights to initialize Embeddings/LSTM weights
         """
-        ih = (param.data for name, param in self.named_parameters() if 'weight_ih' in name)
-        hh = (param.data for name, param in self.named_parameters() if 'weight_hh' in name)
-        b = (param.data for name, param in self.named_parameters() if 'bias' in name)
+        ih = (param for name, param in self.named_parameters() if 'weight_ih' in name)
+        hh = (param for name, param in self.named_parameters() if 'weight_hh' in name)
+        b = (param for name, param in self.named_parameters() if 'bias' in name)
         for t in ih:
-            torch.nn.init.xavier_uniform(t)
+            torch.nn.init.xavier_uniform_(t)
         for t in hh:
-            torch.nn.init.orthogonal(t)
+            torch.nn.init.orthogonal_(t)
         for t in b:
-            torch.nn.init.constant(t, 0)
+            torch.nn.init.constant_(t, 0)
 
     def forward(self, v, mask):
         # get sorted v
-        lengths = mask.data.eq(1).long().sum(1).squeeze()
-        _, idx_sort = torch.sort(lengths, dim=0, descending=True)
+        lengths = mask.eq(1).long().sum(1)
+        lengths_sort, idx_sort = torch.sort(lengths, dim=0, descending=True)
         _, idx_unsort = torch.sort(idx_sort, dim=0)
-
-        lengths_sort = list(lengths[idx_sort])
-        idx_sort = torch.autograd.Variable(idx_sort)
-        idx_unsort = torch.autograd.Variable(idx_unsort)
-
-        if v.is_cuda:
-            idx_sort = idx_sort.cuda()
-            idx_unsort = idx_unsort.cuda()
 
         v_sort = v.index_select(1, idx_sort)
 
@@ -647,9 +639,6 @@ class MyRNNBase(torch.nn.Module):
 
         # get the last time state
         len_idx = (lengths - 1).view(-1, 1).expand(-1, o_unsort.size(2)).unsqueeze(0)
-        len_idx = torch.autograd.Variable(len_idx)
-        if v.is_cuda:
-            len_idx = len_idx.cuda()
         o_last = o_unsort.gather(0, len_idx)
 
         # new_mask = generate_mask(lengths_sort, enable_cuda=v.is_cuda)
@@ -681,12 +670,12 @@ class AttentionPooling(torch.nn.Module):
         self.linear_t = torch.nn.Linear(input_size, 1)
 
         # todo: replace vr and linear_v with one parameter
-        self.vr = torch.nn.Parameter(torch.FloatTensor(1, 1, input_size))
+        self.vr = torch.nn.Parameter(torch.empty(1, 1, input_size, dtype=torch.float))
         self.reset_parameters()
 
     def reset_parameters(self):
         stdv = 1. / math.sqrt(self.vr.size(1))
-        self.vr.data.uniform_(-stdv, stdv)
+        torch.nn.init.uniform_(self.vr, -stdv, stdv)
 
     def forward(self, uq, mask):
         wuq_uq = self.linear_u(uq)

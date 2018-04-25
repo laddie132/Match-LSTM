@@ -25,21 +25,22 @@ def main(config_path, out_path):
 
     # set random seed
     seed = global_config['model']['global']['random_seed']
-    enable_cuda = global_config['test']['enable_cuda']
     torch.manual_seed(seed)
 
+    enable_cuda = global_config['test']['enable_cuda']
+    device = torch.device("cuda" if enable_cuda else "cpu")
     if torch.cuda.is_available() and not enable_cuda:
         logger.warning("CUDA is avaliable, you can enable CUDA in config file")
     elif not torch.cuda.is_available() and enable_cuda:
         raise ValueError("CUDA is not abaliable, please unable CUDA in config file")
 
+    torch.no_grad()  # make sure all tensors below have require_grad=False
+
     logger.info('reading squad dataset...')
     dataset = SquadDataset(global_config)
 
     logger.info('constructing model...')
-    model = MatchLSTMModel(global_config)
-    if enable_cuda:
-        model = model.cuda()
+    model = MatchLSTMModel(global_config).to(device)
     model.eval()  # let training = False, make sure right dropout
 
     # load model weight
@@ -67,14 +68,14 @@ def main(config_path, out_path):
                                                      criterion=criterion,
                                                      batch_data=batch_dev_data,
                                                      epoch=None,
-                                                     enable_cuda=enable_cuda,
+                                                     device=device,
                                                      enable_char=enable_char,
                                                      batch_char_func=dataset.gen_batch_with_char)
         logger.info("test: ave_score_em=%.2f, ave_score_f1=%.2f, sum_loss=%.5f" % (score_em, score_f1, sum_loss))
     else:
         predict_ans = predict_on_model(model=model,
                                        batch_data=batch_dev_data,
-                                       enable_cuda=enable_cuda,
+                                       device=device,
                                        enable_char=enable_char,
                                        batch_char_func=dataset.gen_batch_with_char,
                                        id_to_word_func=dataset.sentence_id2word)
@@ -88,7 +89,7 @@ def main(config_path, out_path):
     logging.info('finished.')
 
 
-def predict_on_model(model, batch_data, enable_cuda, enable_char, batch_char_func, id_to_word_func):
+def predict_on_model(model, batch_data, device, enable_char, batch_char_func, id_to_word_func):
     batch_cnt = len(batch_data)
     answer = []
 
@@ -96,7 +97,7 @@ def predict_on_model(model, batch_data, enable_cuda, enable_char, batch_char_fun
 
         # batch data
         bat_context, bat_question, bat_context_char, bat_question_char, bat_answer_range = \
-            batch_char_func(batch, enable_char=enable_char, enable_cuda=enable_cuda, volatile=True)
+            batch_char_func(batch, enable_char=enable_char, device=device)
 
         _, tmp_ans_range, _ = model.forward(bat_context, bat_question, bat_context_char, bat_question_char)
         tmp_context_ans = zip(bat_context.cpu().data.numpy(),
@@ -106,11 +107,10 @@ def predict_on_model(model, batch_data, enable_cuda, enable_char, batch_char_fun
 
         logging.info('batch=%d/%d' % (bnum, batch_cnt))
 
-        # manual release memory
+        # manual release memory, todo: really effect?
         del bat_context, bat_question, bat_answer_range, bat_context_char, bat_question_char
         del tmp_ans_range
-        if enable_cuda:
-            torch.cuda.empty_cache()
+        # torch.cuda.empty_cache()
 
     return answer
 

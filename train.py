@@ -11,7 +11,6 @@ from dataset.squad_dataset import SquadDataset
 from models.match_lstm import MatchLSTMModel
 from models.loss import MyNLLLoss
 from utils.load_config import init_logging, read_config
-from utils.functions import to_variable
 from utils.eval import eval_on_model
 
 init_logging()
@@ -25,9 +24,10 @@ def main():
 
     # set random seed
     seed = global_config['model']['global']['random_seed']
-    enable_cuda = global_config['train']['enable_cuda']
     torch.manual_seed(seed)
 
+    enable_cuda = global_config['train']['enable_cuda']
+    device = torch.device("cuda" if enable_cuda else "cpu")
     if torch.cuda.is_available() and not enable_cuda:
         logger.warning("CUDA is avaliable, you can enable CUDA in config file")
     elif not torch.cuda.is_available() and enable_cuda:
@@ -37,10 +37,8 @@ def main():
     dataset = SquadDataset(global_config)
 
     logger.info('constructing model...')
-    model = MatchLSTMModel(global_config)
+    model = MatchLSTMModel(global_config).to(device)
     criterion = MyNLLLoss()
-    if enable_cuda:
-        model = model.cuda()
 
     # optimizer
     optimizer_choose = global_config['train']['optimizer']
@@ -92,20 +90,21 @@ def main():
                                   batch_data=batch_train_data,
                                   epoch=epoch,
                                   clip_grad_max=clip_grad_max,
-                                  enable_cuda=enable_cuda,
+                                  device=device,
                                   enable_char=enable_char,
                                   batch_char_func=dataset.gen_batch_with_char)
         logger.info('epoch=%d, sum_loss=%.5f' % (epoch, sum_loss))
 
         # evaluate
-        model.eval()  # let training = False, make sure right dropout
-        valid_score_em, valid_score_f1, valid_loss = eval_on_model(model=model,
-                                                                   criterion=criterion,
-                                                                   batch_data=batch_dev_data,
-                                                                   epoch=epoch,
-                                                                   enable_cuda=enable_cuda,
-                                                                   enable_char=enable_char,
-                                                                   batch_char_func=dataset.gen_batch_with_char)
+        with torch.no_grad():
+            model.eval()  # let training = False, make sure right dropout
+            valid_score_em, valid_score_f1, valid_loss = eval_on_model(model=model,
+                                                                       criterion=criterion,
+                                                                       batch_data=batch_dev_data,
+                                                                       epoch=epoch,
+                                                                       device=device,
+                                                                       enable_char=enable_char,
+                                                                       batch_char_func=dataset.gen_batch_with_char)
         logger.info("epoch=%d, ave_score_em=%.2f, ave_score_f1=%.2f, sum_loss=%.5f" %
                     (epoch, valid_score_em, valid_score_f1, valid_loss))
 
@@ -121,7 +120,7 @@ def main():
     logger.info('finished.')
 
 
-def train_on_model(model, criterion, optimizer, batch_data, epoch, clip_grad_max, enable_cuda, enable_char, batch_char_func):
+def train_on_model(model, criterion, optimizer, batch_data, epoch, clip_grad_max, device, enable_char, batch_char_func):
     """
     train on every batch
     :param enable_char:
@@ -132,7 +131,7 @@ def train_on_model(model, criterion, optimizer, batch_data, epoch, clip_grad_max
     :param optimizer:
     :param epoch:
     :param clip_grad_max:
-    :param enable_cuda:
+    :param device:
     :return:
     """
     batch_cnt = len(batch_data)
@@ -142,7 +141,7 @@ def train_on_model(model, criterion, optimizer, batch_data, epoch, clip_grad_max
 
         # batch data
         bat_context, bat_question, bat_context_char, bat_question_char, bat_answer_range = \
-            batch_char_func(batch, enable_char=enable_char, enable_cuda=enable_cuda, volatile=False)
+            batch_char_func(batch, enable_char=enable_char, device=device)
 
         # forward
         ans_range_prop, _, _ = model.forward(bat_context, bat_question, bat_context_char, bat_question_char)
@@ -155,16 +154,15 @@ def train_on_model(model, criterion, optimizer, batch_data, epoch, clip_grad_max
         optimizer.step()  # update parameters
 
         # logging
-        batch_loss = loss.cpu().data.numpy()
+        batch_loss = loss.item()    # todo: to cpu?
         sum_loss += batch_loss * bat_answer_range.shape[0]
 
         logger.info('epoch=%d, batch=%d/%d, loss=%.5f' % (epoch, i, batch_cnt, batch_loss))
 
-        # manual release memory
+        # manual release memory, todo: really effect?
         del bat_context, bat_question, bat_answer_range, bat_context_char, bat_question_char
         del ans_range_prop, loss
-        if enable_cuda:
-            torch.cuda.empty_cache()
+        # torch.cuda.empty_cache()
 
     return sum_loss
 

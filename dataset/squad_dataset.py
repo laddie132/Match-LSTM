@@ -180,16 +180,16 @@ class SquadDataset:
 
         return to_long_tensor(batch_char)
 
-    def gen_batch_with_char(self, batch_data, enable_char, enable_cuda, volatile):
+    def gen_batch_with_char(self, batch_data, enable_char, device):
         """
-        word batch to generate char barch, also transform to torch variable, used in train or valid steps
+        word batch to generate char barch, also move to device, used in train or valid steps
         :param batch_data: [bat_context, bat_question, bat_answer_range]
         :param enable_char:
         :param enable_cuda:
         :return:
         """
         if not enable_char:
-            bat_context, bat_question, bat_answer_range = [to_variable(x, enable_cuda, volatile=volatile) for x in batch_data]
+            bat_context, bat_question, bat_answer_range = [x.to(device) for x in batch_data]
             bat_context_char = None
             bat_question_char = None
 
@@ -198,9 +198,12 @@ class SquadDataset:
             bat_context_char = self.__batch_word_to_char(bat_context)
             bat_question_char = self.__batch_word_to_char(bat_question)
 
-            bat_context, bat_question, bat_context_char, bat_question_char, bat_answer_range = \
-                [to_variable(x, enable_cuda, volatile=volatile) for x in
-                 [bat_context, bat_question, bat_context_char, bat_question_char, bat_answer_range]]
+            bat_context, bat_question, bat_context_char, bat_question_char, bat_answer_range = [x.to(device) for x in
+                                                                                                [bat_context,
+                                                                                                 bat_question,
+                                                                                                 bat_context_char,
+                                                                                                 bat_question_char,
+                                                                                                 bat_answer_range]]
 
         return bat_context, bat_question, bat_context_char, bat_question_char, bat_answer_range
 
@@ -228,8 +231,8 @@ class SquadDataset:
         return list(w)
 
     def word_char2id(self, w):
-        if w == PreprocessData.padding:     # not actual word
-            return np.ones(1,)  # make sure word length>0 and right encoding, here any none-zero value not effect
+        if w == PreprocessData.padding:  # not actual word
+            return np.ones(1, )  # make sure word length>0 and right encoding, here any none-zero value not effect
 
         w_id = map(lambda ch: self.__meta_data['char2id'][ch], w)
         return np.array(list(w_id))
@@ -240,7 +243,7 @@ class SquadDataset:
         if max_len is None:
             word_len = list(map(lambda x: len(x), s_cid))
             max_len = np.max(word_len)
-        s_cid_pad = map(lambda x: np.pad(x, (0, max_len-len(x)), 'constant', constant_values=(0, 0)), s_cid)
+        s_cid_pad = map(lambda x: np.pad(x, (0, max_len - len(x)), 'constant', constant_values=(0, 0)), s_cid)
 
         return np.stack(list(s_cid_pad), axis=0)
 
@@ -265,9 +268,9 @@ class SquadDataset:
         real_step = []
         step_length_cnt = []
         for i in range(1, len(steps)):
-            lower_bound = steps[i-1]
+            lower_bound = steps[i - 1]
             upper_bound = steps[i]
-            assert lower_bound < upper_bound   # [lower_bound, upper_bound)
+            assert lower_bound < upper_bound  # [lower_bound, upper_bound)
             real_step.append((lower_bound, upper_bound))
 
             valid = length_pd[(length_pd['length'] < upper_bound) & (length_pd['length'] >= lower_bound)]
@@ -286,6 +289,7 @@ class CQA_Dataset(torch.utils.data.Dataset):
     """
     torch dataset type, used for dataloader
     """
+
     def __init__(self, context, question, answer_range):
         self.context = context
         self.question = question

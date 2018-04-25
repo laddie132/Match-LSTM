@@ -10,7 +10,7 @@ from dataset.preprocess_data import PreprocessData
 logger = logging.getLogger(__name__)
 
 
-def eval_on_model(model, criterion, batch_data, epoch, enable_cuda, enable_char, batch_char_func):
+def eval_on_model(model, criterion, batch_data, epoch, device, enable_char, batch_char_func):
     """
     evaluate on a specific trained model
     :param enable_char:
@@ -19,7 +19,7 @@ def eval_on_model(model, criterion, batch_data, epoch, enable_cuda, enable_char,
     :param criterion:
     :param batch_data: test data with batches
     :param epoch:
-    :param enable_cuda:
+    :param device:
     :return: (em, f1, sum_loss)
     """
     batch_cnt = len(batch_data)
@@ -32,7 +32,7 @@ def eval_on_model(model, criterion, batch_data, epoch, enable_cuda, enable_char,
 
         # batch data
         bat_context, bat_question, bat_context_char, bat_question_char, bat_answer_range = \
-            batch_char_func(batch, enable_char=enable_char, enable_cuda=enable_cuda, volatile=True)
+            batch_char_func(batch, enable_char=enable_char, device=device)
 
         tmp_ans_prop, tmp_ans_range, _ = model.forward(bat_context, bat_question, bat_context_char, bat_question_char)
 
@@ -41,15 +41,15 @@ def eval_on_model(model, criterion, batch_data, epoch, enable_cuda, enable_char,
 
         # get loss
         batch_loss = criterion.forward(tmp_ans_prop, bat_answer_range[:, 0:2])
-        sum_loss += batch_loss.cpu().data.numpy() * tmp_size
+        sum_loss += batch_loss.item() * tmp_size
 
         # calculate the mean em and f1 score
         for i in range(tmp_size):
-            if evaluate_em(tmp_ans_range[i].cpu().data.numpy(), bat_answer_range[i].cpu().data.numpy()):
+            if evaluate_em(tmp_ans_range[i].cpu().numpy(), bat_answer_range[i].cpu().numpy()):
                 num_em += 1
-            score_f1 += evaluate_f1(bat_context[i].cpu().data.numpy(),
-                                    tmp_ans_range[i].cpu().data.numpy(),
-                                    bat_answer_range[i].cpu().data.numpy())
+            score_f1 += evaluate_f1(bat_context[i].cpu().numpy(),
+                                    tmp_ans_range[i].cpu().numpy(),
+                                    bat_answer_range[i].cpu().numpy())
         if epoch is None:
             logger.info('test: batch=%d/%d, cur_score_em=%.2f, cur_score_f1=%.2f, batch_loss=%.5f' %
                         (bnum, batch_cnt, num_em * 1. / dev_data_size, score_f1 / dev_data_size, batch_loss))
@@ -57,11 +57,10 @@ def eval_on_model(model, criterion, batch_data, epoch, enable_cuda, enable_char,
             logger.info('epoch=%d, batch=%d/%d, cur_score_em=%.2f, cur_score_f1=%.2f, batch_loss=%.5f' %
                         (epoch, bnum, batch_cnt, num_em * 1. / dev_data_size, score_f1 / dev_data_size, batch_loss))
 
-        # manual release memory
+        # manual release memory, todo: really effect?
         del bat_context, bat_question, bat_answer_range, bat_context_char, bat_question_char
         del tmp_ans_prop, tmp_ans_range, batch_loss
-        if enable_cuda:
-            torch.cuda.empty_cache()
+        # torch.cuda.empty_cache()
 
     score_em = num_em * 1. / dev_data_size
     score_f1 /= dev_data_size
