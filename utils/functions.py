@@ -109,15 +109,14 @@ def compute_mask(v, padding_idx=0):
     return mask
 
 
-def generate_mask(batch_length, device):
+def generate_mask(batch_length):
     """
     generate mask with given length of each element in batch
-    :param batch_length:
-    :param device:
+    :param batch_length: tensor
     :return:
     """
-    sum_one = np.sum(np.array(batch_length))
-    one = torch.ones(int(sum_one)).to(device)
+    sum_one = torch.sum(batch_length)
+    one = torch.ones(sum_one.item())
 
     mask_packed = torch.nn.utils.rnn.PackedSequence(one, batch_length)
     mask, _ = torch.nn.utils.rnn.pad_packed_sequence(mask_packed)
@@ -314,3 +313,19 @@ def masked_flip(vin, mask, flip_dim=0):
     inv_tensor = torch.stack(flip_list, dim=1)
 
     return inv_tensor
+
+
+def pop_dict_keys(d, ks_sub):
+    """
+    delete keys in dict d that has a substring in ks_sub
+    :param d:
+    :param ks_sub:
+    :return:
+    """
+    for x in list(d.keys()):
+        for sub in ks_sub:
+            if sub in x:
+                del d[x]
+                break
+
+    return d

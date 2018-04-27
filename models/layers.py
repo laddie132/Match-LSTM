@@ -71,7 +71,7 @@ class CharEmbedding(torch.nn.Module):
         self.embedding_layer = torch.nn.Embedding(num_embeddings=n_embedding, embedding_dim=embedding_size,
                                                   padding_idx=0)
 
-        # notice that cannot directly assign value. When in predict, it's always False.
+        # Note that cannot directly assign value. When in predict, it's always False.
         if not trainable:
             self.embedding_layer.weight.requires_grad = False
 
@@ -191,6 +191,7 @@ class CharCNNEncoder(torch.nn.Module):
     Outputs
         **output** (seq_len, batch, hidden_size)
     """
+
     def __init__(self, emb_size, hidden_size, filters_size, filters_num, dropout_p, enable_highway=True):
         super(CharCNNEncoder, self).__init__()
         self.enable_highway = enable_highway
@@ -388,7 +389,7 @@ class MatchRNN(torch.nn.Module):
             right_hidden_inv, right_alpha_inv = self.right_match_rnn.forward(Hp_inv, Hq, Hq_mask)
 
             # flip back to normal sequence
-            right_alpha_inv = right_alpha_inv.transpose(0, 1)   # make sure right flip
+            right_alpha_inv = right_alpha_inv.transpose(0, 1)  # make sure right flip
             right_alpha = masked_flip(right_alpha_inv, Hp_mask, flip_dim=2)
             right_alpha = right_alpha.transpose(0, 1)
             right_hidden = masked_flip(right_hidden_inv, Hp_mask, flip_dim=0)
@@ -635,14 +636,11 @@ class MyRNNBase(torch.nn.Module):
         o, _ = torch.nn.utils.rnn.pad_packed_sequence(o_pack_dropout)
 
         # unsorted o
-        o_unsort = o.index_select(1, idx_unsort)  # notice here first dim is seq_len
+        o_unsort = o.index_select(1, idx_unsort)  # Note that here first dim is seq_len
 
         # get the last time state
         len_idx = (lengths - 1).view(-1, 1).expand(-1, o_unsort.size(2)).unsqueeze(0)
         o_last = o_unsort.gather(0, len_idx)
-
-        # new_mask = generate_mask(lengths_sort, enable_cuda=v.is_cuda)
-        # new_mask_unsort = new_mask.index_select(0, idx_unsort)
 
         return o_unsort, o_last
 

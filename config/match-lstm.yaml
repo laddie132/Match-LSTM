@@ -7,7 +7,7 @@ data:
 
   embedding_path: data/glove.840B.300d.zip
 
-  model_path: data/model-weight.pt
+  model_path: data/model/match-lstm.pt-epoch17
   checkpoint_path: data/checkpoint
 
 model:

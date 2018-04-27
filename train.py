@@ -6,21 +6,23 @@ __author__ = 'han'
 import os
 import torch
 import logging
+import argparse
 import torch.optim as optim
 from dataset.squad_dataset import SquadDataset
 from models.match_lstm import MatchLSTMModel
 from models.loss import MyNLLLoss
 from utils.load_config import init_logging, read_config
 from utils.eval import eval_on_model
+from utils.functions import pop_dict_keys
 
 init_logging()
 logger = logging.getLogger(__name__)
 
 
-def main():
+def main(config_path):
     logger.info('------------Match-LSTM Train--------------')
     logger.info('loading config file...')
-    global_config = read_config()
+    global_config = read_config(config_path)
 
     # set random seed
     seed = global_config['model']['global']['random_seed']
@@ -64,6 +66,7 @@ def main():
         weight = torch.load(weight_path, map_location=lambda storage, loc: storage)
         if enable_cuda:
             weight = torch.load(weight_path, map_location=lambda storage, loc: storage.cuda())
+        # weight = pop_dict_keys(weight, ['pointer', 'init_ptr_hidden'])  # partial initial weight
         model.load_state_dict(weight, strict=False)
 
     # training arguments
@@ -150,11 +153,11 @@ def train_on_model(model, criterion, optimizer, batch_data, epoch, clip_grad_max
         loss = criterion.forward(ans_range_prop, bat_answer_range)
         loss.backward()
 
-        torch.nn.utils.clip_grad_norm(model.parameters(), clip_grad_max)  # fix gradient explosion
+        torch.nn.utils.clip_grad_norm_(model.parameters(), clip_grad_max)  # fix gradient explosion
         optimizer.step()  # update parameters
 
         # logging
-        batch_loss = loss.item()    # todo: to cpu?
+        batch_loss = loss.item()
         sum_loss += batch_loss * bat_answer_range.shape[0]
 
         logger.info('epoch=%d, batch=%d/%d, loss=%.5f' % (epoch, i, batch_cnt, batch_loss))
@@ -187,4 +190,8 @@ def save_model(model, epoch, model_weight_path, checkpoint_path):
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description="train on the model")
+    parser.add_argument('--config', '-c', required=False, dest='config_path', default='config/model_config.yaml')
+    args = parser.parse_args()
+
+    main(args.config_path)

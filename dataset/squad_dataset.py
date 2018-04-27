@@ -219,7 +219,7 @@ class SquadDataset:
     def sentence_word2id(self, s):
         """
         transform a sentence with word to a sentence with word id
-        (Notice it's a slow version when using np.where)
+        (Note that it's a slow version when using np.where)
         :param s:
         :return:
         """
