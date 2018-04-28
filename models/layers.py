@@ -646,39 +646,30 @@ class MyRNNBase(torch.nn.Module):
 
 class AttentionPooling(torch.nn.Module):
     """
-    Attnetion-Pooling for pointer net init hidden state generate
+    Attention-Pooling for pointer net init hidden state generate.
+    Modified from r-net.
     Args:
-        input_size: The number of expected features in the input x
+        input_size: The number of expected features in the input uq
+        output_size: The number of expected features in the output rq_o
 
     Inputs: input, mask
         - **input** (seq_len, batch, input_size): tensor containing the features
           of the input sequence.
         - **mask** (batch, seq_len): tensor show whether a padding index for each element in the batch.
 
-    Outputs: output, output_mask
-        - **output** (batch, input_size): tensor containing the output features
+    Outputs: output
+        - **output** (batch, output_size): tensor containing the output features
     """
 
-    def __init__(self, input_size):
+    def __init__(self, input_size, output_size):
         super(AttentionPooling, self).__init__()
 
-        self.linear_u = torch.nn.Linear(input_size, input_size)
-        self.linear_v = torch.nn.Linear(input_size, input_size)
-        self.linear_t = torch.nn.Linear(input_size, 1)
-
-        # todo: replace vr and linear_v with one parameter
-        self.vr = torch.nn.Parameter(torch.empty(1, 1, input_size, dtype=torch.float))
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        stdv = 1. / math.sqrt(self.vr.size(1))
-        torch.nn.init.uniform_(self.vr, -stdv, stdv)
+        self.linear_u = torch.nn.Linear(input_size, output_size)
+        self.linear_t = torch.nn.Linear(output_size, 1)
+        self.linear_o = torch.nn.Linear(input_size, output_size)
 
     def forward(self, uq, mask):
-        wuq_uq = self.linear_u(uq)
-        wvq_vq = self.linear_v(self.vr)
-
-        q_tanh = F.tanh(wuq_uq + wvq_vq)
+        q_tanh = F.tanh(self.linear_u(uq))
         q_s = self.linear_t(q_tanh) \
             .squeeze(2) \
             .transpose(0, 1)  # (batch, seq_len)
@@ -686,4 +677,6 @@ class AttentionPooling(torch.nn.Module):
         alpha = masked_softmax(q_s, mask, dim=1)  # (batch, seq_len)
         rq = torch.bmm(alpha.unsqueeze(1), uq.transpose(0, 1)) \
             .squeeze(1)  # (batch, input_size)
-        return rq
+
+        rq_o = F.tanh(self.linear_o(rq))    # (batch, output_size)
+        return rq_o

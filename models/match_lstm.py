@@ -130,23 +130,18 @@ class MatchLSTMModel(torch.nn.Module):
                                               dropout_p=dropout_p)
             match_lstm_out_size = hidden_size * 2
 
-        # when pooling, just fill the pooling result to left direction of Ptr-Net, only for unidirectional
-        # when bi-pooling, split the pooling result to left and right part, and sent to Ptr-Net, only for bidirectional
-        assert self.init_ptr_hidden_mode != 'pooling' or not ptr_bidirection, 'pooling should with ptr-unidirectional'
-        assert self.init_ptr_hidden_mode != 'bi-pooling' or ptr_bidirection or not self.mix_encode, \
-            'bi-pooling should with ptr-bidirectional and word-char mix encoding'
-        ptr_hidden_size = encode_out_size if self.init_ptr_hidden_mode == 'pooling' else hidden_size
         self.pointer_net = BoundaryPointer(mode=hidden_mode,
                                            input_size=match_lstm_out_size,
-                                           hidden_size=ptr_hidden_size,  # just to fit init hidden on encoder generate
+                                           hidden_size=hidden_size,
                                            bidirectional=ptr_bidirection,
                                            dropout_p=dropout_p)
+        ptr_in_size = hidden_size * ptr_direction_num
 
         # pointer net init hidden generate
-        if self.init_ptr_hidden_mode == 'pooling' or self.init_ptr_hidden_mode == 'bi-pooling':
-            self.init_ptr_hidden = AttentionPooling(encode_out_size)
+        if self.init_ptr_hidden_mode == 'pooling':
+            self.init_ptr_hidden = AttentionPooling(encode_out_size, ptr_in_size)
         elif self.init_ptr_hidden_mode == 'linear':
-            self.init_ptr_hidden = nn.Linear(match_lstm_out_size, hidden_size * ptr_direction_num)
+            self.init_ptr_hidden = nn.Linear(match_lstm_out_size, ptr_in_size)
         elif self.init_ptr_hidden_mode == 'None':
             pass
         else:
@@ -199,11 +194,11 @@ class MatchLSTMModel(torch.nn.Module):
 
         # pointer net init hidden: (batch, hidden_size)
         ptr_net_hidden = None
-        if self.init_ptr_hidden_mode == 'pooling' or self.init_ptr_hidden_mode == 'bi-pooling':
+        if self.init_ptr_hidden_mode == 'pooling':
             ptr_net_hidden = self.init_ptr_hidden.forward(question_encode, question_mask)
         elif self.init_ptr_hidden_mode == 'linear':
             ptr_net_hidden = self.init_ptr_hidden.forward(qt_aware_last_hidden)
-            ptr_net_hidden = torch.tanh(ptr_net_hidden)
+            ptr_net_hidden = F.tanh(ptr_net_hidden)
 
         # pointer net: (answer_len, batch, context_len)
         ans_range_prop = self.pointer_net.forward(qt_aware_ct, context_mask, ptr_net_hidden)

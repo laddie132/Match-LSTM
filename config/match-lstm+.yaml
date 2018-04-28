@@ -46,7 +46,7 @@ model:
     birnn_after_self: False
 
   output:
-    init_ptr_hidden: linear # pooling, bi-pooling, linear, None
+    init_ptr_hidden: linear # pooling, linear, None
     ptr_bidirection: False
     answer_search: True
 
