@@ -7,7 +7,7 @@ data:
 
   embedding_path: data/glove.840B.300d.zip
 
-  model_path: data/model-weight.pt
+  model_path: data/model/+ga+G+tsc+B+ba.pt-c64-epoch3
   checkpoint_path: data/checkpoint
 
 model:
@@ -20,7 +20,7 @@ model:
   encoder:
     # char-level
     char_layers: 1
-    char_embedding_size: 300
+    char_embedding_size: 64
     char_cnn_filter_size: [2, 3, 4, 5]
     char_cnn_filter_num: [75, 75, 75, 75]
     char_encode_type: 'LSTM' # 'LSTM' or 'CNN'

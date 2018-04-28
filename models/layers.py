@@ -377,7 +377,7 @@ class MatchRNN(torch.nn.Module):
         self.dropout = torch.nn.Dropout(p=dropout_p)
 
     def forward(self, Hp, Hp_mask, Hq, Hq_mask):
-        Hp = self.dropout(Hp)  # todo: move it to rnn of each direction
+        Hp = self.dropout(Hp)
         Hq = self.dropout(Hq)
 
         left_hidden, left_alpha = self.left_match_rnn.forward(Hp, Hq, Hq_mask)
@@ -550,9 +550,8 @@ class BoundaryPointer(torch.nn.Module):
         left_beta = self.left_ptr_rnn.forward(Hr, Hr_mask, h_0_left)
         rtn_beta = left_beta
         if self.bidirectional:
-            Hr_inv = masked_flip(Hr, Hr_mask)  # mask don't need to flip
-            right_beta_inv = self.right_ptr_rnn.forward(Hr_inv, Hr_mask, h_0_right)
-            right_beta = masked_flip(right_beta_inv, Hr_mask, flip_dim=2)
+            right_beta_inv = self.right_ptr_rnn.forward(Hr, Hr_mask, h_0_right)
+            right_beta = right_beta_inv[[1, 0], :]
 
             rtn_beta = (left_beta + right_beta) / 2
 

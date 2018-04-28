@@ -62,6 +62,7 @@ class MatchLSTMModel(torch.nn.Module):
         self_match_lstm_direction_num = 2 if self_match_lstm_bidirection else 1
 
         ptr_bidirection = global_config['model']['output']['ptr_bidirection']
+        ptr_direction_num = 2 if ptr_bidirection else 1
         self.init_ptr_hidden_mode = global_config['model']['output']['init_ptr_hidden']
         self.enable_search = global_config['model']['output']['answer_search']
 
@@ -145,7 +146,7 @@ class MatchLSTMModel(torch.nn.Module):
         if self.init_ptr_hidden_mode == 'pooling' or self.init_ptr_hidden_mode == 'bi-pooling':
             self.init_ptr_hidden = AttentionPooling(encode_out_size)
         elif self.init_ptr_hidden_mode == 'linear':
-            self.init_ptr_hidden = nn.Linear(match_lstm_out_size, hidden_size)
+            self.init_ptr_hidden = nn.Linear(match_lstm_out_size, hidden_size * ptr_direction_num)
         elif self.init_ptr_hidden_mode == 'None':
             pass
         else:

@@ -264,8 +264,6 @@ def flip(tensor, flip_dim=0):
     """
     idx = [i for i in range(tensor.size(flip_dim) - 1, -1, -1)]
     idx = tensor.new_tensor(idx, dtype=torch.long)
-    if tensor.is_cuda:
-        idx = idx.cuda()
     inverted_tensor = tensor.index_select(flip_dim, idx)
     return inverted_tensor
 
@@ -278,14 +276,16 @@ def del_zeros_right(tensor):
     """
 
     seq_len = tensor.shape[1]
+    last_col = seq_len
     for i in range(seq_len - 1, -1, -1):
         tmp_col = tensor[:, i]
         tmp_sum_col = torch.sum(tmp_col)
         if tmp_sum_col > 0:
             break
 
-        tensor = tensor[:, :i]
+        last_col = i
 
+    tensor = tensor[:, :last_col]
     return tensor
 
 
@@ -297,7 +297,7 @@ def masked_flip(vin, mask, flip_dim=0):
     :param flip_dim: dim to flip on
     :return:
     """
-    length = mask.data.eq(1).long().sum(1)  # todo: speed up, vectoration
+    length = mask.data.eq(1).long().sum(1)
     batch_size = vin.shape[1]
 
     flip_list = []
