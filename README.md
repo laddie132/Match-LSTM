@@ -2,7 +2,7 @@
 
 Here we implement the MatchLSTM (Wang and Jiang, 2016) model and R-Net(MSRA, 2017) model on SQuAD (Rajpurkar et al., 2016).
 
-Maybe there are some details different from initial paper。
+Maybe there are some details different from initial paper.
 
 ## Requirements
 
@@ -23,7 +23,7 @@ Here are some changes on Match-LSTM with boundary+search methods.
 - add aggregation layer with one GRU layer(*from r-net*)
 - initial GRU first state in pointer-net
     - add linear layer after aggregation layer
-    - or add attention-pooling layer after question encoding
+    - or add attention-pooling layer after question encoding(*from r-net*)
 
 Evaluate results on SQuAD dev set:
 
