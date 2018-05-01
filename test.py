@@ -34,7 +34,7 @@ def main(config_path, out_path):
     elif not torch.cuda.is_available() and enable_cuda:
         raise ValueError("CUDA is not abaliable, please unable CUDA in config file")
 
-    torch.no_grad()  # make sure all tensors below have require_grad=False
+    torch.set_grad_enabled(False)  # make sure all tensors below have require_grad=False,
 
     logger.info('reading squad dataset...')
     dataset = SquadDataset(global_config)

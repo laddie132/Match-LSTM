@@ -62,8 +62,8 @@ def eval_on_model(model, criterion, batch_data, epoch, device, enable_char, batc
         del tmp_ans_prop, tmp_ans_range, batch_loss
         # torch.cuda.empty_cache()
 
-    score_em = num_em * 1. / dev_data_size
-    score_f1 /= dev_data_size
+    score_em = num_em * 100.0 / dev_data_size
+    score_f1 = score_f1 * 100.0 / dev_data_size
 
     logger.info("eval data size: %d" % dev_data_size)
     return score_em, score_f1, sum_loss
