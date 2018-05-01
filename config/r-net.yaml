@@ -7,14 +7,14 @@ data:
 
   embedding_path: data/glove.840B.300d.zip
 
-  model_path: data/model-weight.pt
+  model_path: data/model/r-net-45.pt-epoch20
   checkpoint_path: data/checkpoint
 
 model:
   global:
     random_seed: 123
     dropout_p: 0.2
-    hidden_size: 75  # one-direction
+    hidden_size: 45  # one-direction
     hidden_mode: GRU # LSTM or GRU
 
   encoder:

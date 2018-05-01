@@ -2,14 +2,43 @@
 
 Here we implement the MatchLSTM (Wang and Jiang, 2016) model and R-Net(MSRA, 2017) model on SQuAD (Rajpurkar et al., 2016).
 
-Maybe there are some details different from initial paper, we just try our own understanding.
+Maybe there are some details different from initial paper。
 
 ## Requirements
 
 - python3
 - anaconda
-- [pytorch0.4](https://github.com/pytorch/pytorch/tree/v0.4.0)
+- [pytorch 0.4](https://github.com/pytorch/pytorch/tree/v0.4.0)
 - [GloVe word embeddings](https://nlp.stanford.edu/projects/glove/)
+
+## Experiments
+
+We have trained on Match-LSTM and R-NET model, but both are not as good as the paper given. The best model is Match-LSTM+ 
+that a little change from Match-LSTM. 
+
+Here are some changes on Match-LSTM with boundary+search methods.
+- replace LSTM with GRU
+- add gated-attention match(*from r-net*)
+- add separated char-level encoding(*small different from char encoding in r-net*)
+- add aggregation layer with one GRU layer(*from r-net*)
+- initial GRU first state in pointer-net
+    - add linear layer after aggregation layer
+    - or add attention-pooling layer after question encoding
+
+Evaluate results on SQuAD dev set:
+
+model|em|f1
+---|---|---|
+Match-LSTM+ with linear|66.72|76.05
+Match-LSTM+ with pooling and bp|**66.93**|**76.09**
+R-NET-45(our version)|64.19|73.62
+R-NET(paper)|72.3|80.6
+
+> - 'bp' refers to bidirectional ptr-net
+> - 'linear' refers to linear initial pointer-net
+> - 'pooling' refers to attention-pooling inital pointer-net
+> - 'R-NET-45' refers to R-NET with hidden size of 45
+
 
 ## Usage
 
@@ -48,14 +77,10 @@ Run `python helper_run/analysis_[*].py`.
 
 Here we provide some scipt to analysis your model output, such as `analysis_log.py`, `analysis_ans.py`, `analysis_dataset.py` and so on. Please read the scipt first to know how to use it or what it does.
 
-## Experiments
-
-Not finished yet.
-
 ## Reference
 
 - [Wang, Shuohang, and Jing Jiang. "Machine comprehension using match-lstm and answer pointer." arXiv preprint arXiv:1608.07905 (2016).](https://arxiv.org/abs/1608.07905)
-- [R-NET: MACHINE READING COMPREHENSION WITH SELF-MATCHING NETWORKS](https://www.microsoft.com/en-us/research/wp-content/uploads/2017/05/r-net.pdf)(unpublished)
+- [R-NET: MACHINE READING COMPREHENSION WITH SELF-MATCHING NETWORKS](https://www.microsoft.com/en-us/research/wp-content/uploads/2017/05/r-net.pdf)
 
 ## License
 

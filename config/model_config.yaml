@@ -23,7 +23,7 @@ model:
     char_embedding_size: 64
     char_cnn_filter_size: [2, 3, 4, 5]
     char_cnn_filter_num: [75, 75, 75, 75]
-    char_encode_type: 'CNN' # 'LSTM' or 'CNN'
+    char_encode_type: 'LSTM' # 'LSTM' or 'CNN'
     char_trainable: True
     enable_char: True
 
@@ -33,10 +33,10 @@ model:
 
     # other
     bidirection: True
-    mix_encode: True # whether word and char the same encoder
+    mix_encode: False # when 'false' means separated char-encoding, else means char encoding same as methods in r-net
 
   interaction:
-    mlp_attention: False  # mlp-attention and gated-attention only choose one
+    mlp_attention: False  # recommend not to use
     gated_attention: True
     match_lstm_bidirection: True
 
@@ -46,8 +46,8 @@ model:
     birnn_after_self: False
 
   output:
-    init_ptr_hidden: linear # pooling, bi-pooling, linear, None
-    ptr_bidirection: False
+    init_ptr_hidden: pooling # pooling, linear, None
+    ptr_bidirection: True
     answer_search: True
 
 train:
