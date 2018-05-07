@@ -33,7 +33,7 @@ model:
 
     # other
     bidirection: True
-    mix_encode: False # whether word and char the same encoder
+    mix_encode: False # when 'false' means separated char-encoding, else means char encoding same as methods in r-net
 
   interaction:
     mlp_attention: False
@@ -43,11 +43,12 @@ model:
     enable_self_match: False
     self_match_bidirection: True
 
-    birnn_after_self: False
+    birnn_after_self: True
+    self_attention: False
 
   output:
-    init_ptr_hidden: linear # pooling, linear, None
-    ptr_bidirection: False
+    init_ptr_hidden: pooling # pooling, linear, None
+    ptr_bidirection: True
     answer_search: True
 
 train:

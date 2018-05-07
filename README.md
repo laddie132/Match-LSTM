@@ -18,12 +18,12 @@ that a little change from Match-LSTM.
 
 Here are some changes on Match-LSTM with boundary+search methods.
 - replace LSTM with GRU
-- add gated-attention match(*from r-net*)
-- add separated char-level encoding(*small different from char encoding in r-net*)
-- add aggregation layer with one GRU layer(*from r-net*)
+- add gated-attention match
+- add separated char-level encoding
+- add aggregation layer with one GRU layer
 - initial GRU first state in pointer-net
     - add linear layer after aggregation layer
-    - or add attention-pooling layer after question encoding(*from r-net*)
+    - or add attention-pooling layer after question encoding
 
 Evaluate results on SQuAD dev set:
 
@@ -53,7 +53,7 @@ Run `python train.py [-c config_file]`.
 
 - -c config_file: Defined model hyperparameters. Default: `config/model_config.yaml`
 
-> Notice that there are some config templates you can choose in directory `config/`, such as `config/match-lstm.yaml`, `config/r-net.yaml`, and so on. You can also try to modify `config/model_config.yaml` for default arguments.
+> Note that there are some config templates you can choose in directory `config/`, such as `config/match-lstm.yaml`, `config/r-net.yaml`, and so on. You can also try to modify `config/model_config.yaml` for default arguments.
 
 ### Test
 
@@ -62,7 +62,7 @@ Run `python test.py [-c config_file] [-o ans_file]`.
 - -c config_file: Defined model hyperparameters. Default: `config/model_config.yaml`
 - -o ans_file: Output the answer of question and context with a unique id to ans_file. Default: `None`, means no write file and just calculate the score of em and f1(not same with standard score).
 
-> Notice that we use `data/model-weight.pt` as our model weights by default. You can modify the config_file to set model weights file.
+> Note that we use `data/model-weight.pt` as our model weights by default. You can modify the config_file to set model weights file.
 
 ### Evaluate
 

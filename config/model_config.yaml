@@ -43,7 +43,8 @@ model:
     enable_self_match: False
     self_match_bidirection: True
 
-    birnn_after_self: False
+    birnn_after_self: True
+    self_attention: True
 
   output:
     init_ptr_hidden: pooling # pooling, linear, None

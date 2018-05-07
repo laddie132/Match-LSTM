@@ -680,3 +680,37 @@ class AttentionPooling(torch.nn.Module):
 
         rq_o = F.tanh(self.linear_o(rq))    # (batch, output_size)
         return rq_o
+
+
+class SelfAttention(torch.nn.Module):
+    """
+    Self-Attention layer
+    Args:
+        input_size: The number of expected features in the input x
+
+    Inputs: input, mask
+        - **input** (seq_len, batch, input_size): tensor containing the features
+          of the input sequence.
+        - **mask** (batch, seq_len): tensor show whether a padding index for each element in the batch.
+
+    Outputs: output
+        - **output** (seq_len, batch, input_size): gated output tensor
+    """
+
+    def __init__(self, input_size):
+        super(SelfAttention, self).__init__()
+
+        self.linear_g = torch.nn.Linear(input_size, input_size)
+        self.linear_t = torch.nn.Linear(input_size, 1)
+
+    def forward(self, x, x_mask):
+        g_tanh = F.tanh(self.linear_g(x))
+        gt = self.linear_t.forward(g_tanh) \
+            .squeeze(2) \
+            .transpose(0, 1)    # (batch, seq_len)
+
+        gt_prop = masked_softmax(gt, x_mask, dim=1)
+        gt_prop = gt_prop.transpose(0, 1).unsqueeze(2)  # (seq_len, batch, 1)
+        x_gt = x * gt_prop
+
+        return x_gt
