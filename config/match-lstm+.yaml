@@ -63,4 +63,4 @@ train:
 
 test:
   batch_size: 32
-  enable_cuda: False
+  enable_cuda: True
