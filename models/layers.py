@@ -233,11 +233,11 @@ class MatchRNNAttention(torch.nn.Module):
         alpha(batch, question_len): attention vector
     """
 
-    def __init__(self, input_size, hidden_size):
+    def __init__(self, hp_input_size, hq_input_size, hidden_size):
         super(MatchRNNAttention, self).__init__()
 
-        self.linear_wq = torch.nn.Linear(input_size, hidden_size)
-        self.linear_wp = torch.nn.Linear(input_size, hidden_size)
+        self.linear_wq = torch.nn.Linear(hq_input_size, hidden_size)
+        self.linear_wp = torch.nn.Linear(hp_input_size, hidden_size)
         self.linear_wr = torch.nn.Linear(hidden_size, hidden_size)
         self.linear_wg = torch.nn.Linear(hidden_size, 1)
 
@@ -269,25 +269,28 @@ class UniMatchRNN(torch.nn.Module):
         alpha(batch, question_len, context_len): used for visual show
     """
 
-    def __init__(self, mode, input_size, hidden_size, gated_attention, mlp_attention):
+    def __init__(self, mode, hp_input_size, hq_input_size, hidden_size, gated_attention, mlp_attention):
         super(UniMatchRNN, self).__init__()
-        self.input_size = input_size
         self.hidden_size = hidden_size
         self.gated_attention = gated_attention
         self.mlp_attention = mlp_attention
+        rnn_in_size = hp_input_size + hq_input_size
 
         assert gated_attention != mlp_attention, 'mlp-attention and gated-attention only choose one'
 
-        self.attention = MatchRNNAttention(input_size, hidden_size)
+        self.attention = MatchRNNAttention(hp_input_size, hq_input_size, hidden_size)
 
-        if self.gated_attention or self.mlp_attention:
-            self.gated_linear = torch.nn.Linear(2 * input_size, 2 * input_size)
+        if self.mlp_attention:
+            self.mlp_linear = torch.nn.Linear(rnn_in_size, rnn_in_size)
+
+        if self.gated_attention:
+            self.gated_linear = torch.nn.Linear(rnn_in_size, 1)
 
         self.mode = mode
         if mode == 'LSTM':
-            self.hidden_cell = torch.nn.LSTMCell(input_size=2 * input_size, hidden_size=hidden_size)
+            self.hidden_cell = torch.nn.LSTMCell(input_size=rnn_in_size, hidden_size=hidden_size)
         elif mode == 'GRU':
-            self.hidden_cell = torch.nn.GRUCell(input_size=2 * input_size, hidden_size=hidden_size)
+            self.hidden_cell = torch.nn.GRUCell(input_size=rnn_in_size, hidden_size=hidden_size)
         else:
             raise ValueError('Wrong mode select %s, change to LSTM or GRU' % mode)
         self.reset_parameters()
@@ -324,11 +327,11 @@ class UniMatchRNN(torch.nn.Module):
 
             question_alpha = torch.bmm(alpha.unsqueeze(1), Hq.transpose(0, 1)) \
                 .squeeze(1)  # (batch, input_size)
-            cur_z = torch.cat([cur_hp, question_alpha], dim=1)  # (batch, 2*input_size)
+            cur_z = torch.cat([cur_hp, question_alpha], dim=1)  # (batch, output_size)
 
             # mlp
             if self.mlp_attention:
-                cur_z = F.sigmoid(self.gated_linear.forward(cur_z))
+                cur_z = F.relu(self.mlp_linear.forward(cur_z))
 
             # gated
             if self.gated_attention:
@@ -365,14 +368,14 @@ class MatchRNN(torch.nn.Module):
         Hr(context_len, batch, hidden_size * num_directions): question-aware context representation
     """
 
-    def __init__(self, mode, input_size, hidden_size, bidirectional, gated_attention, mlp_attention, dropout_p):
+    def __init__(self, mode, hp_input_size, hq_input_size, hidden_size, bidirectional, gated_attention, mlp_attention, dropout_p):
         super(MatchRNN, self).__init__()
         self.bidirectional = bidirectional
         self.num_directions = 1 if bidirectional else 2
 
-        self.left_match_rnn = UniMatchRNN(mode, input_size, hidden_size, gated_attention, mlp_attention)
+        self.left_match_rnn = UniMatchRNN(mode, hp_input_size, hq_input_size, hidden_size, gated_attention, mlp_attention)
         if bidirectional:
-            self.right_match_rnn = UniMatchRNN(mode, input_size, hidden_size, gated_attention, mlp_attention)
+            self.right_match_rnn = UniMatchRNN(mode, hp_input_size, hq_input_size, hidden_size, gated_attention, mlp_attention)
 
         self.dropout = torch.nn.Dropout(p=dropout_p)
 
@@ -714,3 +717,18 @@ class SelfAttention(torch.nn.Module):
         x_gt = x * gt_prop
 
         return x_gt
+
+
+class SelfGated(torch.nn.Module):
+    def __init__(self, input_size):
+        super(SelfGated, self).__init__()
+
+        self.linear_g = torch.nn.Linear(input_size, 1)
+
+    def forward(self, x):
+        x_l = self.linear_g(x)  # (seq_len, batch, 1)
+        x_gt = F.sigmoid(x_l)
+
+        x = x * x_gt
+
+        return x

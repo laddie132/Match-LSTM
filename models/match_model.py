@@ -57,10 +57,11 @@ class MatchLSTMModel(torch.nn.Module):
         self.enable_birnn_after_self = global_config['model']['interaction']['birnn_after_self']
         gated_attention = global_config['model']['interaction']['gated_attention']
         mlp_attention = global_config['model']['interaction']['mlp_attention']
-        self.enable_self_attention = global_config['model']['interaction']['self_attention']
+        self.enable_self_gated = global_config['model']['interaction']['self_gated']
+        self.enable_question_match = global_config['model']['interaction']['question_match']
 
-        match_lstm_direction_num = 2 if match_lstm_bidirection else 1
-        self_match_lstm_direction_num = 2 if self_match_lstm_bidirection else 1
+        match_rnn_direction_num = 2 if match_lstm_bidirection else 1
+        self_match_rnn_direction_num = 2 if self_match_lstm_bidirection else 1
 
         ptr_bidirection = global_config['model']['output']['ptr_bidirection']
         ptr_direction_num = 2 if ptr_bidirection else 1
@@ -103,39 +104,53 @@ class MatchLSTMModel(torch.nn.Module):
         if self.enable_char and not self.mix_encode:
             encode_out_size *= 2
 
+        match_rnn_in_size = encode_out_size
+        if self.enable_question_match:
+            self.question_match_rnn = MatchRNN(mode=hidden_mode,
+                                               hp_input_size=encode_out_size,
+                                               hq_input_size=encode_out_size,
+                                               hidden_size=hidden_size,
+                                               bidirectional=match_lstm_bidirection,
+                                               gated_attention=gated_attention,
+                                               mlp_attention=mlp_attention,
+                                               dropout_p=dropout_p)
+            match_rnn_in_size = hidden_size * match_rnn_direction_num
+
         self.match_rnn = MatchRNN(mode=hidden_mode,
-                                  input_size=encode_out_size,
+                                  hp_input_size=encode_out_size,
+                                  hq_input_size=match_rnn_in_size,
                                   hidden_size=hidden_size,
                                   bidirectional=match_lstm_bidirection,
                                   gated_attention=gated_attention,
                                   mlp_attention=mlp_attention,
                                   dropout_p=dropout_p)
-        match_lstm_out_size = hidden_size * match_lstm_direction_num
+        match_rnn_out_size = hidden_size * match_rnn_direction_num
 
         if self.enable_self_match:
             self.self_match_rnn = MatchRNN(mode=hidden_mode,
-                                           input_size=match_lstm_out_size,
+                                           hp_input_size=match_rnn_out_size,
+                                           hq_input_size=match_rnn_out_size,
                                            hidden_size=hidden_size,
                                            bidirectional=self_match_lstm_bidirection,
                                            gated_attention=gated_attention,
                                            mlp_attention=mlp_attention,
                                            dropout_p=dropout_p)
-            match_lstm_out_size = hidden_size * self_match_lstm_direction_num
+            match_rnn_out_size = hidden_size * self_match_rnn_direction_num
 
         if self.enable_birnn_after_self:
             self.birnn_after_self = MyRNNBase(mode=hidden_mode,
-                                              input_size=match_lstm_out_size,
+                                              input_size=match_rnn_out_size,
                                               hidden_size=hidden_size,
                                               num_layers=1,
                                               bidirectional=True,
                                               dropout_p=dropout_p)
-            match_lstm_out_size = hidden_size * 2
+            match_rnn_out_size = hidden_size * 2
 
-        if self.enable_self_attention:
-            self.self_attention = SelfAttention(input_size=match_lstm_out_size)
+        if self.enable_self_gated:
+            self.self_gated = SelfGated(input_size=match_rnn_out_size)
 
         self.pointer_net = BoundaryPointer(mode=hidden_mode,
-                                           input_size=match_lstm_out_size,
+                                           input_size=match_rnn_out_size,
                                            hidden_size=hidden_size,
                                            bidirectional=ptr_bidirection,
                                            dropout_p=dropout_p)
@@ -145,7 +160,7 @@ class MatchLSTMModel(torch.nn.Module):
         if self.init_ptr_hidden_mode == 'pooling':
             self.init_ptr_hidden = AttentionPooling(encode_out_size, ptr_in_size)
         elif self.init_ptr_hidden_mode == 'linear':
-            self.init_ptr_hidden = nn.Linear(match_lstm_out_size, ptr_in_size)
+            self.init_ptr_hidden = nn.Linear(match_rnn_out_size, ptr_in_size)
         elif self.init_ptr_hidden_mode == 'None':
             pass
         else:
@@ -181,9 +196,16 @@ class MatchLSTMModel(torch.nn.Module):
             context_encode = torch.cat((context_encode, context_vec_char), dim=-1)
             question_encode = torch.cat((question_encode, question_vec_char), dim=-1)
 
+        # question match-lstm
+        match_rnn_in_question = question_encode
+        if self.enable_question_match:
+            ct_aware_qt, _, _ = self.question_match_rnn.forward(question_encode, question_mask,
+                                                                context_encode, context_mask)
+            match_rnn_in_question = ct_aware_qt
+
         # match lstm: (seq_len, batch, hidden_size)
         qt_aware_ct, qt_aware_last_hidden, match_alpha = self.match_rnn.forward(context_encode, context_mask,
-                                                                                question_encode, question_mask)
+                                                                                match_rnn_in_question, question_mask)
         vis_param = {'match': match_alpha}
 
         # self match lstm: (seq_len, batch, hidden_size)
@@ -196,9 +218,9 @@ class MatchLSTMModel(torch.nn.Module):
         if self.enable_birnn_after_self:
             qt_aware_ct, _ = self.birnn_after_self.forward(qt_aware_ct, context_mask)
 
-        # self-attention
-        if self.enable_self_attention:
-            qt_aware_ct = self.self_attention(qt_aware_ct, context_mask)
+        # self gated
+        if self.enable_self_gated:
+            qt_aware_ct = self.self_gated(qt_aware_ct)
 
         # pointer net init hidden: (batch, hidden_size)
         ptr_net_hidden = None

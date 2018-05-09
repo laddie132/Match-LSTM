@@ -36,6 +36,8 @@ model:
     mix_encode: False # when 'false' means separated char-encoding, else means char encoding same as methods in r-net
 
   interaction:
+    question_match: False
+
     mlp_attention: False  # recommend not to use
     gated_attention: True
     match_lstm_bidirection: True
@@ -44,7 +46,7 @@ model:
     self_match_bidirection: True
 
     birnn_after_self: True
-    self_attention: False
+    self_gated: False
 
   output:
     init_ptr_hidden: pooling # pooling, linear, None

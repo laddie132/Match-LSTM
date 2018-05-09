@@ -12,7 +12,7 @@ import argparse
 import torch
 import logging
 from collections import OrderedDict
-from models.match_lstm import MatchLSTMModel
+from models.match_model import MatchLSTMModel
 from utils.load_config import init_logging, read_config
 
 init_logging()

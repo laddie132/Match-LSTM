@@ -9,7 +9,7 @@ import torch
 import logging
 import argparse
 from dataset.squad_dataset import SquadDataset
-from models.match_lstm import MatchLSTMModel
+from models.match_model import MatchLSTMModel
 from utils.load_config import init_logging, read_config
 from models.loss import MyNLLLoss
 from utils.eval import eval_on_model

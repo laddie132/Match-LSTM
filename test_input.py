@@ -10,7 +10,7 @@ import nltk
 import numpy as np
 import matplotlib.pyplot as plt
 from dataset.squad_dataset import SquadDataset
-from models.match_lstm import MatchLSTMModel
+from models.match_model import MatchLSTMModel
 from utils.load_config import init_logging, read_config
 from utils.functions import to_long_tensor, count_parameters, draw_heatmap_sea
 
