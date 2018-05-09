@@ -70,7 +70,7 @@ def main():
     context_token = nltk.word_tokenize(context)
     question_token = nltk.word_tokenize(question)
 
-    a = np.array(context_token)
+    context_array = np.array(context_token)
 
     context_id = dataset.sentence_word2id(context_token)
     question_id = dataset.sentence_word2id(question_token)
@@ -97,8 +97,11 @@ def main():
     s = 0
     e = 48
 
-    x_left = vis_param['match']['left'][0, :, s:e].cpu().data.numpy()
-    x_right = vis_param['match']['right'][0, :, s:e].cpu().data.numpy()
+    x_left = vis_param['match']['left']['alpha'][0, :, s:e].cpu().data.numpy()
+    x_right = vis_param['match']['right']['alpha'][0, :, s:e].cpu().data.numpy()
+
+    x_left_gated = vis_param['match']['left']['gated'][:, s:e].cpu().data.numpy()
+    x_right_gated = vis_param['match']['right']['gated'][:, s:e].cpu().data.numpy()
 
     draw_heatmap_sea(x_left,
                      xlabels=context_token[s:e],
@@ -114,8 +117,8 @@ def main():
                      bottom=0.45)
 
     if global_config['model']['interaction']['enable_self_match']:
-        x_self_left = vis_param['self']['left'][0, s:e, s:e].cpu().data.numpy()
-        x_self_right = vis_param['self']['right'][0, s:e, s:e].cpu().data.numpy()
+        x_self_left = vis_param['self']['left']['alpha'][0, s:e, s:e].cpu().data.numpy()
+        x_self_right = vis_param['self']['right']['alpha'][0, s:e, s:e].cpu().data.numpy()
 
         draw_heatmap_sea(x_self_left,
                          xlabels=context_token[s:e],

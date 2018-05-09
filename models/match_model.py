@@ -35,6 +35,7 @@ class MatchLSTMModel(torch.nn.Module):
         hidden_size = global_config['model']['global']['hidden_size']
         hidden_mode = global_config['model']['global']['hidden_mode']
         dropout_p = global_config['model']['global']['dropout_p']
+        enable_layer_norm = global_config['model']['global']['layer_norm']
 
         word_embedding_size = global_config['model']['encoder']['word_embedding_size']
         char_embedding_size = global_config['model']['encoder']['char_embedding_size']
@@ -113,7 +114,8 @@ class MatchLSTMModel(torch.nn.Module):
                                                bidirectional=match_lstm_bidirection,
                                                gated_attention=gated_attention,
                                                mlp_attention=mlp_attention,
-                                               dropout_p=dropout_p)
+                                               dropout_p=dropout_p,
+                                               enable_layer_norm=enable_layer_norm)
             match_rnn_in_size = hidden_size * match_rnn_direction_num
 
         self.match_rnn = MatchRNN(mode=hidden_mode,
@@ -123,7 +125,8 @@ class MatchLSTMModel(torch.nn.Module):
                                   bidirectional=match_lstm_bidirection,
                                   gated_attention=gated_attention,
                                   mlp_attention=mlp_attention,
-                                  dropout_p=dropout_p)
+                                  dropout_p=dropout_p,
+                                  enable_layer_norm=enable_layer_norm)
         match_rnn_out_size = hidden_size * match_rnn_direction_num
 
         if self.enable_self_match:
@@ -134,7 +137,8 @@ class MatchLSTMModel(torch.nn.Module):
                                            bidirectional=self_match_lstm_bidirection,
                                            gated_attention=gated_attention,
                                            mlp_attention=mlp_attention,
-                                           dropout_p=dropout_p)
+                                           dropout_p=dropout_p,
+                                           enable_layer_norm=enable_layer_norm)
             match_rnn_out_size = hidden_size * self_match_rnn_direction_num
 
         if self.enable_birnn_after_self:
@@ -143,7 +147,8 @@ class MatchLSTMModel(torch.nn.Module):
                                               hidden_size=hidden_size,
                                               num_layers=1,
                                               bidirectional=True,
-                                              dropout_p=dropout_p)
+                                              dropout_p=dropout_p,
+                                              enable_layer_norm=enable_layer_norm)
             match_rnn_out_size = hidden_size * 2
 
         if self.enable_self_gated:
@@ -153,7 +158,8 @@ class MatchLSTMModel(torch.nn.Module):
                                            input_size=match_rnn_out_size,
                                            hidden_size=hidden_size,
                                            bidirectional=ptr_bidirection,
-                                           dropout_p=dropout_p)
+                                           dropout_p=dropout_p,
+                                           enable_layer_norm=enable_layer_norm)
         ptr_in_size = hidden_size * ptr_direction_num
 
         # pointer net init hidden generate
@@ -204,15 +210,15 @@ class MatchLSTMModel(torch.nn.Module):
             match_rnn_in_question = ct_aware_qt
 
         # match lstm: (seq_len, batch, hidden_size)
-        qt_aware_ct, qt_aware_last_hidden, match_alpha = self.match_rnn.forward(context_encode, context_mask,
+        qt_aware_ct, qt_aware_last_hidden, match_para = self.match_rnn.forward(context_encode, context_mask,
                                                                                 match_rnn_in_question, question_mask)
-        vis_param = {'match': match_alpha}
+        vis_param = {'match': match_para}
 
         # self match lstm: (seq_len, batch, hidden_size)
         if self.enable_self_match:
-            qt_aware_ct, qt_aware_last_hidden, self_alpha = self.self_match_rnn.forward(qt_aware_ct, context_mask,
+            qt_aware_ct, qt_aware_last_hidden, self_para = self.self_match_rnn.forward(qt_aware_ct, context_mask,
                                                                                         qt_aware_ct, context_mask)
-            vis_param['self'] = self_alpha
+            vis_param['self'] = self_para
 
         # birnn after self match: (seq_len, batch, hidden_size)
         if self.enable_birnn_after_self:

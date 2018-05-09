@@ -16,6 +16,7 @@ model:
     dropout_p: 0.4
     hidden_size: 150  # one-direction
     hidden_mode: GRU # LSTM or GRU
+    layer_norm: True
 
   encoder:
     # char-level
