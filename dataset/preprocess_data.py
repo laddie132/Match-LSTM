@@ -44,14 +44,14 @@ class PreprocessData:
 
         # temp data
         self.__word2id = {self.padding: 0}
-        self.__char2id = {self.padding: 0}
+        self.__char2id = {self.padding: 0, '`': 1}  # because nltk word tokenize will replace '"' with '``'
         self.__word2vec = {self.padding: [0. for i in range(self.__embedding_size)]}
         self.__oov_num = 0
 
         # data need to store in hdf5 file
         self.__meta_data = {'id2vec': [[0. for i in range(self.__embedding_size)]],
                             'id2word': [self.padding],
-                            'id2char': [self.padding]}
+                            'id2char': [self.padding, '`']}
         self.__data = {}
         self.__attr = {}
 

@@ -484,16 +484,18 @@ class SeqPointer(torch.nn.Module):
 
 class UniBoundaryPointer(torch.nn.Module):
     r"""
-    boundary Pointer Net that output start and end possible answer position in context
+    Unidirectional Boundary Pointer Net that output start and end possible answer position in context
     Args:
         - input_size: The number of features in Hr
         - hidden_size: The number of features in the hidden layer
+        - enable_layer_norm: Whether use layer normalization
 
     Inputs:
         Hr(context_len, batch, hidden_size * num_directions): question-aware context representation
         h_0(batch, hidden_size): init lstm cell hidden state
     Outputs:
         **output** (answer_len, batch, context_len): start and end answer index possibility position in context
+        **hidden** (batch, hidden_size), [(batch, hidden_size)]: rnn last state
     """
     answer_len = 2
 
@@ -537,7 +539,7 @@ class UniBoundaryPointer(torch.nn.Module):
             batch_size = Hr.shape[1]
             h_0 = Hr.new_zeros(batch_size, self.hidden_size)
 
-        hidden = (h_0, h_0) if self.mode == 'LSTM' else h_0
+        hidden = (h_0, h_0) if self.mode == 'LSTM' and isinstance(h_0, torch.Tensor) else h_0
         beta_out = []
 
         for t in range(self.answer_len):
@@ -554,12 +556,25 @@ class UniBoundaryPointer(torch.nn.Module):
             hidden = self.hidden_cell.forward(context_beta, hidden)  # (batch, hidden_size), (batch, hidden_size)
 
         result = torch.stack(beta_out, dim=0)
-        return result
+        return result, hidden
 
 
-# todo: multi-hop
 class BoundaryPointer(torch.nn.Module):
+    r"""
+    Boundary Pointer Net that output start and end possible answer position in context
+    Args:
+        - input_size: The number of features in Hr
+        - hidden_size: The number of features in the hidden layer
+        - bidirectional: Bidirectional or Unidirectional
+        - dropout_p: Dropout probability
+        - enable_layer_norm: Whether use layer normalization
 
+    Inputs:
+        Hr (context_len, batch, hidden_size * num_directions): question-aware context representation
+        h_0 (batch, hidden_size): init lstm cell hidden state
+    Outputs:
+        **output** (answer_len, batch, context_len): start and end answer index possibility position in context
+    """
     def __init__(self, mode, input_size, hidden_size, bidirectional, dropout_p, enable_layer_norm):
         super(BoundaryPointer, self).__init__()
         self.bidirectional = bidirectional
@@ -574,17 +589,10 @@ class BoundaryPointer(torch.nn.Module):
     def forward(self, Hr, Hr_mask, h_0=None):
         Hr = self.dropout.forward(Hr)
 
-        # split h_0 to left and right
-        h_0_left = h_0
-        h_0_right = h_0
-        if h_0 is not None and self.bidirectional:
-            assert self.hidden_size * 2 == h_0.shape[1]
-            h_0_left, h_0_right = list(torch.split(h_0, self.hidden_size, dim=1))
-
-        left_beta = self.left_ptr_rnn.forward(Hr, Hr_mask, h_0_left)
+        left_beta, _ = self.left_ptr_rnn.forward(Hr, Hr_mask, h_0)
         rtn_beta = left_beta
         if self.bidirectional:
-            right_beta_inv = self.right_ptr_rnn.forward(Hr, Hr_mask, h_0_right)
+            right_beta_inv, _ = self.right_ptr_rnn.forward(Hr, Hr_mask, h_0)
             right_beta = right_beta_inv[[1, 0], :]
 
             rtn_beta = (left_beta + right_beta) / 2
@@ -592,6 +600,47 @@ class BoundaryPointer(torch.nn.Module):
         # todo: unexplainable
         new_mask = torch.neg((Hr_mask - 1) * 1e-6)  # mask replace zeros with 1e-6, make sure no gradient explosion
         rtn_beta = rtn_beta + new_mask.unsqueeze(0)
+
+        return rtn_beta
+
+
+class MultiHopBdPointer(torch.nn.Module):
+    r"""
+    Boundary Pointer Net with Multi-Hops that output start and end possible answer position in context
+    Args:
+        - input_size: The number of features in Hr
+        - hidden_size: The number of features in the hidden layer
+        - num_hops: Number of max hops
+        - dropout_p: Dropout probability
+        - enable_layer_norm: Whether use layer normalization
+
+    Inputs:
+        Hr (context_len, batch, hidden_size * num_directions): question-aware context representation
+        h_0 (batch, hidden_size): init lstm cell hidden state
+    Outputs:
+        **output** (answer_len, batch, context_len): start and end answer index possibility position in context
+    """
+    def __init__(self, mode, input_size, hidden_size, num_hops, dropout_p, enable_layer_norm):
+        super(MultiHopBdPointer, self).__init__()
+        self.hidden_size = hidden_size
+        self.num_hops = num_hops
+
+        self.ptr_rnn = UniBoundaryPointer(mode, input_size, hidden_size, enable_layer_norm)
+        self.dropout = torch.nn.Dropout(p=dropout_p)
+
+    def forward(self, Hr, Hr_mask, h_0=None):
+        Hr = self.dropout.forward(Hr)
+
+        beta_last = None
+        for i in range(self.num_hops):
+            beta, h_0 = self.ptr_rnn.forward(Hr, Hr_mask, h_0)
+            if beta_last is not None and (beta_last == beta).sum().item() == beta.shape[0]:     # beta not changed
+                break
+
+            beta_last = beta
+
+        new_mask = torch.neg((Hr_mask - 1) * 1e-6)  # mask replace zeros with 1e-6, make sure no gradient explosion
+        rtn_beta = beta + new_mask.unsqueeze(0)
 
         return rtn_beta
 
@@ -766,10 +815,10 @@ class SelfGated(torch.nn.Module):
     def __init__(self, input_size):
         super(SelfGated, self).__init__()
 
-        self.linear_g = torch.nn.Linear(input_size, 1)
+        self.linear_g = torch.nn.Linear(input_size, input_size)
 
     def forward(self, x):
-        x_l = self.linear_g(x)  # (seq_len, batch, 1)
+        x_l = self.linear_g(x)  # (seq_len, batch, input_size)
         x_gt = F.sigmoid(x_l)
 
         x = x * x_gt

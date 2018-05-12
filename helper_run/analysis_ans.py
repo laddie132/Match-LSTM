@@ -89,7 +89,7 @@ def evaluate_with_wrong(dataset, predictions):
 
                 all_ans += [{'id': qa['id'],
                              'em': int(tmp_em),
-                             'f1': tmp_f1,
+                             'f1': tmp_f1 * 100.0,
                              'true_answer': ground_truths,
                              'predict_answer': prediction,
                              'context': context,

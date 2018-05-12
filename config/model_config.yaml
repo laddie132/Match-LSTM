@@ -48,11 +48,12 @@ model:
     self_match_bidirection: True
 
     birnn_after_self: True
-    self_gated: True
+    self_gated: False
 
   output:
-    init_ptr_hidden: pooling # pooling, linear, None
-    ptr_bidirection: True
+    num_hops: 1 # multi-hop support
+    init_ptr_hidden: linear # pooling, linear, None
+    ptr_bidirection: False
     answer_search: True
 
 train:

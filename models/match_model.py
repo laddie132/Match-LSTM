@@ -65,10 +65,14 @@ class MatchLSTMModel(torch.nn.Module):
         match_rnn_direction_num = 2 if match_lstm_bidirection else 1
         self_match_rnn_direction_num = 2 if self_match_lstm_bidirection else 1
 
+        num_hops = global_config['model']['output']['num_hops']
         ptr_bidirection = global_config['model']['output']['ptr_bidirection']
-        ptr_direction_num = 2 if ptr_bidirection else 1
         self.init_ptr_hidden_mode = global_config['model']['output']['init_ptr_hidden']
         self.enable_search = global_config['model']['output']['answer_search']
+
+        assert num_hops > 0, 'Pointer Net number of hops should bigger than zero'
+        if num_hops > 1:
+            assert not ptr_bidirection, 'Pointer Net bidirectional should with number of one hop'
 
         # construct model
         self.embedding = GloveEmbedding(dataset_h5_path=global_config['data']['dataset_h5'])
@@ -155,19 +159,26 @@ class MatchLSTMModel(torch.nn.Module):
         if self.enable_self_gated:
             self.self_gated = SelfGated(input_size=match_rnn_out_size)
 
-        self.pointer_net = BoundaryPointer(mode=hidden_mode,
-                                           input_size=match_rnn_out_size,
-                                           hidden_size=hidden_size,
-                                           bidirectional=ptr_bidirection,
-                                           dropout_p=dropout_p,
-                                           enable_layer_norm=enable_layer_norm)
-        ptr_in_size = hidden_size * ptr_direction_num
+        if num_hops == 1:
+            self.pointer_net = BoundaryPointer(mode=hidden_mode,
+                                               input_size=match_rnn_out_size,
+                                               hidden_size=hidden_size,
+                                               bidirectional=ptr_bidirection,
+                                               dropout_p=dropout_p,
+                                               enable_layer_norm=enable_layer_norm)
+        else:
+            self.pointer_net = MultiHopBdPointer(mode=hidden_mode,
+                                                 input_size=match_rnn_out_size,
+                                                 hidden_size=hidden_size,
+                                                 num_hops=num_hops,
+                                                 dropout_p=dropout_p,
+                                                 enable_layer_norm=enable_layer_norm)
 
         # pointer net init hidden generate
         if self.init_ptr_hidden_mode == 'pooling':
-            self.init_ptr_hidden = AttentionPooling(encode_out_size, ptr_in_size)
+            self.init_ptr_hidden = AttentionPooling(encode_out_size, hidden_size)
         elif self.init_ptr_hidden_mode == 'linear':
-            self.init_ptr_hidden = nn.Linear(match_rnn_out_size, ptr_in_size)
+            self.init_ptr_hidden = nn.Linear(match_rnn_out_size, hidden_size)
         elif self.init_ptr_hidden_mode == 'None':
             pass
         else:
@@ -212,13 +223,13 @@ class MatchLSTMModel(torch.nn.Module):
 
         # match lstm: (seq_len, batch, hidden_size)
         qt_aware_ct, qt_aware_last_hidden, match_para = self.match_rnn.forward(context_encode, context_mask,
-                                                                                match_rnn_in_question, question_mask)
+                                                                               match_rnn_in_question, question_mask)
         vis_param = {'match': match_para}
 
         # self match lstm: (seq_len, batch, hidden_size)
         if self.enable_self_match:
             qt_aware_ct, qt_aware_last_hidden, self_para = self.self_match_rnn.forward(qt_aware_ct, context_mask,
-                                                                                        qt_aware_ct, context_mask)
+                                                                                       qt_aware_ct, context_mask)
             vis_param['self'] = self_para
 
         # birnn after self match: (seq_len, batch, hidden_size)
@@ -239,15 +250,14 @@ class MatchLSTMModel(torch.nn.Module):
             ptr_net_hidden = self.init_ptr_hidden.forward(qt_aware_last_hidden)
             ptr_net_hidden = F.tanh(ptr_net_hidden)
 
-        # todo: multi-hop
         # pointer net: (answer_len, batch, context_len)
         ans_range_prop = self.pointer_net.forward(qt_aware_ct, context_mask, ptr_net_hidden)
         ans_range_prop = ans_range_prop.transpose(0, 1)
 
         # answer range
-        if self.enable_search:
+        if not self.training and self.enable_search:
             ans_range = answer_search(ans_range_prop, context_mask)
         else:
-            ans_range = torch.max(ans_range_prop, 2)[1]
+            _, ans_range = torch.max(ans_range_prop, dim=2)
 
         return ans_range_prop, ans_range, vis_param

@@ -10,7 +10,7 @@ import argparse
 import torch.optim as optim
 from dataset.squad_dataset import SquadDataset
 from models.match_model import MatchLSTMModel
-from models.loss import MyNLLLoss
+from models.loss import MyNLLLoss, RLLoss
 from utils.load_config import init_logging, read_config
 from utils.eval import eval_on_model
 from utils.functions import pop_dict_keys
