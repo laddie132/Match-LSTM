@@ -284,7 +284,7 @@ class UniMatchRNN(torch.nn.Module):
             self.mlp_linear = torch.nn.Linear(rnn_in_size, rnn_in_size)
 
         if self.gated_attention:
-            self.gated_linear = torch.nn.Linear(rnn_in_size, 1)
+            self.gated_linear = torch.nn.Linear(rnn_in_size, rnn_in_size)
 
         if self.enable_layer_norm:
             self.layer_norm = torch.nn.LayerNorm(rnn_in_size)
@@ -557,6 +557,7 @@ class UniBoundaryPointer(torch.nn.Module):
         return result
 
 
+# todo: multi-hop
 class BoundaryPointer(torch.nn.Module):
 
     def __init__(self, mode, input_size, hidden_size, bidirectional, dropout_p, enable_layer_norm):

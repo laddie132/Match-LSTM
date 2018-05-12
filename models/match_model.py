@@ -35,6 +35,7 @@ class MatchLSTMModel(torch.nn.Module):
         hidden_size = global_config['model']['global']['hidden_size']
         hidden_mode = global_config['model']['global']['hidden_mode']
         dropout_p = global_config['model']['global']['dropout_p']
+        emb_dropout_p = global_config['model']['global']['emb_dropout_p']
         enable_layer_norm = global_config['model']['global']['layer_norm']
 
         word_embedding_size = global_config['model']['encoder']['word_embedding_size']
@@ -83,13 +84,13 @@ class MatchLSTMModel(torch.nn.Module):
                                                 hidden_size=hidden_size,
                                                 num_layers=encoder_char_layers,
                                                 bidirectional=encoder_bidirection,
-                                                dropout_p=dropout_p)
+                                                dropout_p=emb_dropout_p)
             elif char_type == 'CNN':
                 self.char_encoder = CharCNNEncoder(emb_size=char_embedding_size,
                                                    hidden_size=word_embedding_size,
                                                    filters_size=char_cnn_filter_size,
                                                    filters_num=char_cnn_filter_num,
-                                                   dropout_p=dropout_p)
+                                                   dropout_p=emb_dropout_p)
             else:
                 raise ValueError('Unrecognized char_encode_type of value %s' % char_type)
             if self.mix_encode:
@@ -100,7 +101,7 @@ class MatchLSTMModel(torch.nn.Module):
                                  hidden_size=hidden_size,
                                  num_layers=encoder_word_layers,
                                  bidirectional=encoder_bidirection,
-                                 dropout_p=dropout_p)
+                                 dropout_p=emb_dropout_p)
         encode_out_size = hidden_size * encoder_direction_num
         if self.enable_char and not self.mix_encode:
             encode_out_size *= 2
@@ -228,6 +229,8 @@ class MatchLSTMModel(torch.nn.Module):
         if self.enable_self_gated:
             qt_aware_ct = self.self_gated(qt_aware_ct)
 
+        # todo: qt_aware_ct -> lstm, for multi scale
+
         # pointer net init hidden: (batch, hidden_size)
         ptr_net_hidden = None
         if self.init_ptr_hidden_mode == 'pooling':
@@ -236,6 +239,7 @@ class MatchLSTMModel(torch.nn.Module):
             ptr_net_hidden = self.init_ptr_hidden.forward(qt_aware_last_hidden)
             ptr_net_hidden = F.tanh(ptr_net_hidden)
 
+        # todo: multi-hop
         # pointer net: (answer_len, batch, context_len)
         ans_range_prop = self.pointer_net.forward(qt_aware_ct, context_mask, ptr_net_hidden)
         ans_range_prop = ans_range_prop.transpose(0, 1)

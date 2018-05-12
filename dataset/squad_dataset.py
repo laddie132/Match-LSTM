@@ -284,6 +284,37 @@ class SquadDataset:
 
         return rtn_step_length, length_cnt
 
+    def gather_answer_seq_len(self, type, max_len=None):
+        """
+        gather the answer sequence counts with different lengths
+        :param type: 'train' or 'dev' data
+        :param max_len:
+        :return:
+        """
+        data = self.__data[type]
+        answer_range = data['answer_range']
+        lengths = []
+        for i in range(answer_range.shape[0]):
+            tmp_lens = []
+            for j in range(int(answer_range.shape[1] / 2)):
+                if answer_range[i, j*2] != -1:
+                    tmp_lens.append(answer_range[i, j*2+1] - answer_range[i, j*2] + 1)
+            lengths.append(min(tmp_lens))
+
+        length_pd = pd.DataFrame(data=lengths, columns=['length'])
+
+        # get all length cnt
+        length_cnt = length_pd['length'].value_counts().to_frame(name='cnt')
+        length_cnt['length'] = length_cnt.index
+        length_cnt = length_cnt.sort_index()
+
+        if max_len is not None:
+            sum_len = length_cnt[length_cnt['length'] >= max_len]['cnt'].sum()
+            length_cnt = length_cnt[length_cnt['length'] < max_len]
+            length_cnt.loc[max_len] = [sum_len, '>=%d'%max_len]
+
+        return length_cnt
+
 
 class CQA_Dataset(torch.utils.data.Dataset):
     """

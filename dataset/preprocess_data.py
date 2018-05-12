@@ -67,7 +67,7 @@ class PreprocessData:
         self.__export_squad_path = data_config['dataset_h5']
         self.__glove_path = data_config['embedding_path']
         self.__ignore_max_len = data_config['ignore_max_len']
-        self.__embedding_size = int(global_config['model']['word_embedding_size'])
+        self.__embedding_size = int(global_config['model']['encoder']['word_embedding_size'])
 
     def __read_json(self, path):
         """

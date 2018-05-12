@@ -22,7 +22,7 @@ Here are some changes on Match-LSTM with boundary+search methods.
 - add separated char-level encoding
 - add aggregation layer with one GRU layer
 - initial GRU first state in pointer-net
-    - add linear layer after aggregation layer
+    - add full-connect layer after match layer
     - or add attention-pooling layer after question encoding
 
 Evaluate results on SQuAD dev set:
@@ -35,7 +35,7 @@ R-NET-45(our version)|64.19|73.62
 R-NET(paper)|72.3|80.6
 
 > - 'bp' refers to bidirectional ptr-net
-> - 'linear' refers to linear initial pointer-net
+> - 'linear' refers to linear initial pointer-net with FC layer
 > - 'pooling' refers to attention-pooling inital pointer-net
 > - 'R-NET-45' refers to R-NET with hidden size of 45
 

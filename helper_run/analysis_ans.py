@@ -16,6 +16,7 @@ import pandas as pd
 import numpy as np
 
 sys.path.append(os.getcwd())
+sns.set()
 
 
 def normalize_answer(s):
@@ -139,9 +140,15 @@ def ana_question_type_f1(all_ans):
     qtype_df = pd.DataFrame(data=tmp_data, index=qtype_f1.keys(), columns=['f1', 'cnt'])
     qtype_df['type'] = qtype_f1.keys()
 
-    sns.set()
     # sns.set_style('whitegrid')
-    sns.barplot(x='type', y='f1', data=qtype_df, color='#5f88bc')
+    # sns.barplot(x='type', y='f1', data=qtype_df, color='#5f88bc')
+    qtype_df.plot.line(x='type', y='f1', marker='o')
+    plt.xlabel('question type')
+    plt.xticks(range(len(qtype_df['type'])), qtype_df['type'])
+
+    qtype_df.plot.line(x='type', y='cnt', marker='o')
+    plt.xlabel('question type')
+    plt.xticks(range(len(qtype_df['type'])), qtype_df['type'])
 
     return qtype_f1, qtype_cnt
 
@@ -154,7 +161,7 @@ def ana_length_f1(all_ans):
 
     for ele in all_ans:
         tmp_ct_len = len(ele['context'].split())
-        tmp_ans_len = max([len(x.split()) for x in ele['true_answer']])
+        tmp_ans_len = min([len(x.split()) for x in ele['true_answer']])
 
         if tmp_ct_len not in ct_len_f1:
             ct_len_f1[tmp_ct_len] = 0
@@ -181,10 +188,32 @@ def ana_length_f1(all_ans):
     ct_len_df['f1'] = ct_len_df['f1'] * 1.0 / ct_len_df['cnt']
     ans_len_df['f1'] = ans_len_df['f1'] * 1.0 / ans_len_df['cnt']
 
-    print(ct_len_df['length'].max())
+    # f1 for passage and answer length
+    ct_len_df.plot.scatter('length', 'f1')
+    plt.xlabel('passage length')
+    ans_len_df.plot.scatter('length', 'f1')
+    plt.xlabel('answer length')
 
-    ct_len_df.plot.scatter('length', 'f1', title='context length - f1')
-    ans_len_df.plot.scatter('length', 'f1', title='answer length - f1')
+    # count for passage length
+    ct_len_df.plot.scatter('length', 'cnt')
+    plt.xlabel('passage length')
+
+    # count, f1 for answer length
+    max_length = 9
+    max_f1 = ans_len_df[ans_len_df['length'] >= max_length]['f1'].mean()
+    max_cnt = ans_len_df[ans_len_df['length'] >= max_length]['cnt'].sum()
+
+    ans_len_df = ans_len_df[ans_len_df['length'] < max_length]
+    ans_len_df = ans_len_df.sort_index()
+    ans_len_df.loc[max_length] = {'length': '>=%d'%max_length, 'f1': max_f1, 'cnt': max_cnt}
+
+    ans_len_df.plot.line('length', 'cnt', marker='o')
+    plt.xticks(range(len(ans_len_df['length'])), ans_len_df['length'])
+    plt.xlabel('answer length')
+
+    ans_len_df.plot.line('length', 'f1', marker='o')
+    plt.xticks(range(len(ans_len_df['length'])), ans_len_df['length'])
+    plt.xlabel('answer length')
 
 
 if __name__ == '__main__':
