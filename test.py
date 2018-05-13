@@ -14,11 +14,10 @@ from utils.load_config import init_logging, read_config
 from models.loss import MyNLLLoss
 from utils.eval import eval_on_model
 
-init_logging()
 logger = logging.getLogger(__name__)
 
 
-def main(config_path, out_path):
+def test(config_path, out_path):
     logger.info('------------Match-LSTM Evaluate--------------')
     logger.info('loading config file...')
     global_config = read_config(config_path)
@@ -116,9 +115,11 @@ def predict_on_model(model, batch_data, device, enable_char, batch_char_func, id
 
 
 if __name__ == '__main__':
+    init_logging()
+
     parser = argparse.ArgumentParser(description="evaluate on the model")
     parser.add_argument('--config', '-c', required=False, dest='config_path', default='config/model_config.yaml')
     parser.add_argument('--output', '-o', required=False, dest='out_path')
     args = parser.parse_args()
 
-    main(config_path=args.config_path, out_path=args.out_path)
+    test(config_path=args.config_path, out_path=args.out_path)

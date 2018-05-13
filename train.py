@@ -15,11 +15,10 @@ from utils.load_config import init_logging, read_config
 from utils.eval import eval_on_model
 from utils.functions import pop_dict_keys
 
-init_logging()
 logger = logging.getLogger(__name__)
 
 
-def main(config_path):
+def train(config_path):
     logger.info('------------Match-LSTM Train--------------')
     logger.info('loading config file...')
     global_config = read_config(config_path)
@@ -190,8 +189,10 @@ def save_model(model, epoch, model_weight_path, checkpoint_path):
 
 
 if __name__ == '__main__':
+    init_logging()
+
     parser = argparse.ArgumentParser(description="train on the model")
     parser.add_argument('--config', '-c', required=False, dest='config_path', default='config/model_config.yaml')
     args = parser.parse_args()
 
-    main(args.config_path)
+    train(args.config_path)
