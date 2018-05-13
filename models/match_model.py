@@ -58,7 +58,6 @@ class MatchLSTMModel(torch.nn.Module):
         self.enable_self_match = global_config['model']['interaction']['enable_self_match']
         self.enable_birnn_after_self = global_config['model']['interaction']['birnn_after_self']
         gated_attention = global_config['model']['interaction']['gated_attention']
-        mlp_attention = global_config['model']['interaction']['mlp_attention']
         self.enable_self_gated = global_config['model']['interaction']['self_gated']
         self.enable_question_match = global_config['model']['interaction']['question_match']
 
@@ -119,7 +118,6 @@ class MatchLSTMModel(torch.nn.Module):
                                                hidden_size=hidden_size,
                                                bidirectional=match_lstm_bidirection,
                                                gated_attention=gated_attention,
-                                               mlp_attention=mlp_attention,
                                                dropout_p=dropout_p,
                                                enable_layer_norm=enable_layer_norm)
             match_rnn_in_size = hidden_size * match_rnn_direction_num
@@ -130,7 +128,6 @@ class MatchLSTMModel(torch.nn.Module):
                                   hidden_size=hidden_size,
                                   bidirectional=match_lstm_bidirection,
                                   gated_attention=gated_attention,
-                                  mlp_attention=mlp_attention,
                                   dropout_p=dropout_p,
                                   enable_layer_norm=enable_layer_norm)
         match_rnn_out_size = hidden_size * match_rnn_direction_num
@@ -142,7 +139,6 @@ class MatchLSTMModel(torch.nn.Module):
                                            hidden_size=hidden_size,
                                            bidirectional=self_match_lstm_bidirection,
                                            gated_attention=gated_attention,
-                                           mlp_attention=mlp_attention,
                                            dropout_p=dropout_p,
                                            enable_layer_norm=enable_layer_norm)
             match_rnn_out_size = hidden_size * self_match_rnn_direction_num

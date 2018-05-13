@@ -29,8 +29,8 @@ Evaluate results on SQuAD dev set:
 
 model|em|f1
 ---|---|---|
-Match-LSTM+ with linear|66.72|76.05
-Match-LSTM+ with pooling and bp|**66.93**|**76.09**
+Match-LSTM+ with linear|**66.94**|**76.20**
+Match-LSTM+ with pooling and bp|66.93|76.09
 R-NET-45(our version)|64.19|73.62
 R-NET(paper)|72.3|80.6
 

@@ -3,19 +3,21 @@ data:
     train_path: data/SQuAD/train-v1.1.json
     dev_path: data/SQuAD/dev-v1.1.json
   dataset_h5: data/squad_glove.h5
-  ignore_max_len: 700 # context token len > ignore_max_len will be dropped
+  ignore_max_len: 600 # context token len > ignore_max_len will be dropped
 
   embedding_path: data/glove.840B.300d.zip
 
-  model_path: data/model/match-lstm.pt-epoch17
+  model_path: data/model-weight.pt
   checkpoint_path: data/checkpoint
 
 model:
   global:
     random_seed: 123
-    dropout_p: 0.4
+    dropout_p: 0.4  # dropout between other layers
+    emb_dropout_p: 0.1  # dropout between word/char embeddings and encoder
     hidden_size: 150  # one-direction
     hidden_mode: LSTM # LSTM or GRU
+    layer_norm: False
 
   encoder:
     # char-level
@@ -36,7 +38,8 @@ model:
     mix_encode: True # when 'false' means separated char-encoding, else means char encoding same as methods in r-net
 
   interaction:
-    mlp_attention: False
+    question_match: False
+
     gated_attention: False
     match_lstm_bidirection: True
 
@@ -44,9 +47,11 @@ model:
     self_match_bidirection: True
 
     birnn_after_self: False
-    self_attention: False
+    self_gated: False
 
   output:
+    num_hops: 1 # multi-hop support
+    scales: [1] # multi-scale support, for example: [1, 2, 4]. it should be [1] add some even numbers
     init_ptr_hidden: linear # pooling, linear, None
     ptr_bidirection: False
     answer_search: True
