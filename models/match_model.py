@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 from models.layers import *
 from dataset.preprocess_data import PreprocessData
-from utils.functions import answer_search
+from utils.functions import answer_search, multi_scale_ptr
 
 
 class MatchLSTMModel(torch.nn.Module):
@@ -66,6 +66,7 @@ class MatchLSTMModel(torch.nn.Module):
         self_match_rnn_direction_num = 2 if self_match_lstm_bidirection else 1
 
         num_hops = global_config['model']['output']['num_hops']
+        self.scales = global_config['model']['output']['scales']
         ptr_bidirection = global_config['model']['output']['ptr_bidirection']
         self.init_ptr_hidden_mode = global_config['model']['output']['init_ptr_hidden']
         self.enable_search = global_config['model']['output']['answer_search']
@@ -240,8 +241,6 @@ class MatchLSTMModel(torch.nn.Module):
         if self.enable_self_gated:
             qt_aware_ct = self.self_gated(qt_aware_ct)
 
-        # todo: qt_aware_ct -> lstm, for multi scale
-
         # pointer net init hidden: (batch, hidden_size)
         ptr_net_hidden = None
         if self.init_ptr_hidden_mode == 'pooling':
@@ -251,8 +250,10 @@ class MatchLSTMModel(torch.nn.Module):
             ptr_net_hidden = F.tanh(ptr_net_hidden)
 
         # pointer net: (answer_len, batch, context_len)
-        ans_range_prop = self.pointer_net.forward(qt_aware_ct, context_mask, ptr_net_hidden)
-        ans_range_prop = ans_range_prop.transpose(0, 1)
+        # ans_range_prop = self.pointer_net.forward(qt_aware_ct, context_mask, ptr_net_hidden)
+        # ans_range_prop = ans_range_prop.transpose(0, 1)
+
+        ans_range_prop = multi_scale_ptr(self.pointer_net, ptr_net_hidden, qt_aware_ct, context_mask, self.scales)
 
         # answer range
         if not self.training and self.enable_search:

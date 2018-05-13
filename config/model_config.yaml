@@ -52,6 +52,7 @@ model:
 
   output:
     num_hops: 1 # multi-hop support
+    scales: [1, 2] # multi-scale support, for example: [1, 2, 4]. it should be [1] add some even numbers
     init_ptr_hidden: linear # pooling, linear, None
     ptr_bidirection: False
     answer_search: True

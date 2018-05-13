@@ -7,6 +7,7 @@ import torch
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
+from functools import reduce
 
 
 def pad_sequences(sequences, maxlen=None, dtype='int32', padding='pre', truncating='pre', value=0.):
@@ -329,3 +330,45 @@ def pop_dict_keys(d, ks_sub):
                 break
 
     return d
+
+
+def multi_scale_ptr(ptr_net, ptr_init_h, hr, hr_mask, scales):
+    """
+    for multi-scale pointer net output
+    :param ptr_net:
+    :param ptr_init_h: pointer net init hidden state
+    :param hr: (seq_len, batch, hidden_size), question-aware passage representation
+    :param hr_mask: (batch, seq_len)
+    :param scales: list of different scales, for example: [1, 2, 4]. it should be even numbers
+    :return:
+    """
+    seq_len = hr.shape[0]
+    batch_size = hr.shape[1]
+    ans_range_prop = hr.new_zeros((2, batch_size, seq_len))
+    cut_idx = list(range(seq_len))
+
+    for s in scales:
+
+        # down sampling
+        scale_seq_len = int(seq_len / s)
+        down_idx = [i*s + s - 1 for i in range(scale_seq_len)]
+        if seq_len % s != 0:
+            down_idx.append(seq_len-1)
+        down_hr = hr[down_idx]
+        down_hr_mask = hr_mask[:, down_idx]
+
+        down_ans_range_prop = ptr_net.forward(down_hr, down_hr_mask, ptr_init_h)    # (answer_len, batch, seq_len)
+
+        # up sampling
+        down_seq_len = down_ans_range_prop.shape[2]
+        up_idx = [[i for _ in range(s)] for i in range(down_seq_len)]
+        up_idx = list(reduce(lambda x, y: x+y, up_idx))
+        up_ans_range_prop = down_ans_range_prop[:, :, up_idx]
+        up_ans_range_prop = up_ans_range_prop[:, :, cut_idx]
+
+        ans_range_prop += up_ans_range_prop
+
+    ans_range_prop /= len(scales)
+    ans_range_prop = ans_range_prop.transpose(0, 1)  # (batch, answer_len, seq_len)
+
+    return ans_range_prop
