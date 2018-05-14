@@ -157,19 +157,21 @@ class MatchLSTMModel(torch.nn.Module):
             self.self_gated = SelfGated(input_size=match_rnn_out_size)
 
         if num_hops == 1:
-            self.pointer_net = BoundaryPointer(mode=hidden_mode,
-                                               input_size=match_rnn_out_size,
-                                               hidden_size=hidden_size,
-                                               bidirectional=ptr_bidirection,
-                                               dropout_p=dropout_p,
-                                               enable_layer_norm=enable_layer_norm)
+            self.pointer_net = torch.nn.ModuleList([BoundaryPointer(mode=hidden_mode,
+                                                                    input_size=match_rnn_out_size,
+                                                                    hidden_size=hidden_size,
+                                                                    bidirectional=ptr_bidirection,
+                                                                    dropout_p=dropout_p,
+                                                                    enable_layer_norm=enable_layer_norm) for _ in
+                                                    range(len(self.scales))])
         else:
-            self.pointer_net = MultiHopBdPointer(mode=hidden_mode,
-                                                 input_size=match_rnn_out_size,
-                                                 hidden_size=hidden_size,
-                                                 num_hops=num_hops,
-                                                 dropout_p=dropout_p,
-                                                 enable_layer_norm=enable_layer_norm)
+            self.pointer_net = torch.nn.ModuleList([MultiHopBdPointer(mode=hidden_mode,
+                                                                      input_size=match_rnn_out_size,
+                                                                      hidden_size=hidden_size,
+                                                                      num_hops=num_hops,
+                                                                      dropout_p=dropout_p,
+                                                                      enable_layer_norm=enable_layer_norm) for _ in
+                                                    range(len(self.scales))])
 
         # pointer net init hidden generate
         if self.init_ptr_hidden_mode == 'pooling':
