@@ -1,0 +1,71 @@
+data:
+  dataset:
+    train_path: cmrc_data/CMRC/cmrc2018_train.json
+    dev_path: cmrc_data/CMRC/cmrc2018_dev.json
+  dataset_h5: cmrc_data/cmrc_embedding.h5
+  ignore_max_len: 600 # in train data, context token len > ignore_max_len will be dropped
+
+  embedding_path: /Users/han/cmrc/embedding/sgns.target.word-ngram.1-2.dynwin5.thr10.neg5.dim300.iter5
+
+  model_path: cmrc_data/model-weight.pt
+  checkpoint_path: cmrc_data/checkpoint
+
+model:
+  global:
+    random_seed: 123
+    dropout_p: 0.4  # dropout between other layers
+    emb_dropout_p: 0.1  # dropout between word/char embeddings and encoder
+    hidden_size: 150  # one-direction
+    hidden_mode: GRU # LSTM or GRU
+    layer_norm: False
+
+  encoder:
+    # char-level
+    char_layers: 1
+    char_embedding_size: 64
+    char_cnn_filter_size: [2, 3, 4, 5]
+    char_cnn_filter_num: [75, 75, 75, 75]
+    char_encode_type: 'LSTM' # 'LSTM' or 'CNN'
+    char_trainable: True
+    enable_char: True
+
+    # word-level
+    word_layers: 1
+    word_embedding_size: 300
+
+    # other
+    bidirection: True
+    mix_encode: False # when 'false' means separated char-encoding, else means char encoding same as methods in r-net
+
+  interaction:
+    question_match: False
+
+    gated_attention: True
+    match_lstm_bidirection: True
+
+    enable_self_match: False
+    self_match_bidirection: True
+
+    birnn_after_self: True
+    self_gated: False
+
+  output:
+    num_hops: 1 # multi-hop support
+    scales: [1] # multi-scale support, for example: [1, 2, 4]. it should be [1] add some even numbers
+    init_ptr_hidden: linear # pooling, linear, None
+    ptr_bidirection: False
+    answer_search: True
+
+train:
+  batch_size: 32
+  valid_batch_size: 32
+  epoch: 30
+  enable_cuda: True
+
+  optimizer: 'adamax'  # adam, sgd, adamax, adadelta(default is adamax)
+  learning_rate: 0.002  # only for sgd
+  clip_grad_norm: 5
+
+test:
+  batch_size: 32
+  enable_cuda: True
