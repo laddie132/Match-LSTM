@@ -61,6 +61,12 @@ def compre_two(ans_file1, ans_file2):
     label_b = get_label(ans_file2)
     venn2([set(true_a), set(true_b)], set_labels=(label_a, label_b))
 
+    diff = set(true_b).intersection(set(wrong_a))
+    if len(diff) > 20:
+        diff = list(diff)[:20]
+    print('true in b, but wrong in a:')
+    print(diff)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(

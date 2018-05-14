@@ -401,11 +401,9 @@ class MatchRNN(torch.nn.Module):
             right_alpha = right_alpha.transpose(0, 1)
 
             right_gated_inv = right_para_inv['gated']
-            right_gated_inv = right_gated_inv.unsqueeze(0)
-            # right_gated_inv = right_gated_inv.transpose(0, 1)
+            right_gated_inv = right_gated_inv.transpose(0, 1)
             right_gated = masked_flip(right_gated_inv, Hp_mask, flip_dim=2)
-            right_gated = right_gated.squeeze(0)
-            # right_gated = right_gated.transpose(0, 1)
+            right_gated = right_gated.transpose(0, 1)
 
             right_hidden = masked_flip(right_hidden_inv, Hp_mask, flip_dim=0)
 

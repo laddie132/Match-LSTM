@@ -85,7 +85,7 @@ class PreprocessData:
         self.__attr['dataset_name'] = 'squad-' + version
         return contexts_qas
 
-    def __build_data(self, contexts_qas):
+    def __build_data(self, contexts_qas, training):
         """
         handle squad data to (context, question, answer_range) with word id representation
         :param contexts_qas: a context with several question-answers
@@ -101,7 +101,7 @@ class PreprocessData:
             cur_qas = question_grp['qas']
 
             cur_context_toke = nltk.word_tokenize(cur_context)
-            if len(cur_context_toke) > self.__ignore_max_len:  # some context token len too large, such as 766
+            if training and len(cur_context_toke) > self.__ignore_max_len:  # some context token len too large, such as 766
                 continue
 
             self.__update_to_char(cur_context)
@@ -282,8 +282,8 @@ class PreprocessData:
         dev_context_qas = self.__read_json(self.__dev_path)
 
         logger.info('transform word to id...')
-        train_cache_nopad = self.__build_data(train_context_qas)
-        dev_cache_nopad = self.__build_data(dev_context_qas)
+        train_cache_nopad = self.__build_data(train_context_qas, training=True)
+        dev_cache_nopad = self.__build_data(dev_context_qas, training=False)
 
         self.__attr['train_size'] = len(train_cache_nopad['answer_range'])
         self.__attr['dev_size'] = len(dev_cache_nopad['answer_range'])
