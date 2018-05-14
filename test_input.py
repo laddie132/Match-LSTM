@@ -100,8 +100,8 @@ def main():
     x_left = vis_param['match']['left']['alpha'][0, :, s:e].cpu().data.numpy()
     x_right = vis_param['match']['right']['alpha'][0, :, s:e].cpu().data.numpy()
 
-    x_left_gated = vis_param['match']['left']['gated'][:, s:e].cpu().data.numpy()
-    x_right_gated = vis_param['match']['right']['gated'][:, s:e].cpu().data.numpy()
+    x_left_gated = vis_param['match']['left']['gated'][0, :, s:e].cpu().data.numpy()
+    x_right_gated = vis_param['match']['right']['gated'][0, :, s:e].cpu().data.numpy()
 
     draw_heatmap_sea(x_left,
                      xlabels=context_token[s:e],
