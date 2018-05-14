@@ -70,6 +70,12 @@ class PreprocessCMRC:
         self.__ignore_max_len = data_config['ignore_max_len']
         self.__embedding_size = int(global_config['model']['encoder']['word_embedding_size'])
 
+    def hanlp_segment(self, sentence):
+        return [term.word for term in HanLP.segment(sentence)]
+
+    def jieba_segment(self, sentence):
+        return list(jieba.cut(sentence))
+
     def __build_data(self, path, training):
         """
         handle squad data to (context, question, answer_range) with word id representation
@@ -88,7 +94,7 @@ class PreprocessCMRC:
             cur_context = question_grp['context_text']
             cur_qas = question_grp['qas']
 
-            cur_context_toke = HanLP.segment(cur_context)
+            cur_context_toke = self.hanlp_segment(cur_context)
             if training and len(cur_context_toke) > self.__ignore_max_len:  # some context token len too large, such as 766
                 continue
 
@@ -99,7 +105,7 @@ class PreprocessCMRC:
             for qa in cur_qas:
                 cur_question = qa['query_text']
                 self.__update_to_char(cur_question)
-                cur_question_toke = HanLP.segment(cur_question)
+                cur_question_toke = self.hanlp_segment(cur_question)
                 cur_question_ids = self.__sentence_to_id(cur_question_toke)
                 self.__max_question_token_len = max(self.__max_question_token_len, len(cur_question_ids))
 
