@@ -4,7 +4,7 @@
 __author__ = 'han'
 
 import os
-import zipfile
+import bz2
 import jieba
 from pyhanlp import *
 import json
@@ -213,14 +213,21 @@ class PreprocessCMRC:
         """
         logger.debug("read embeddings from text file %s" % self.__embedding_path)
         if not os.path.exists(self.__embedding_path):
-            raise ValueError('embeddings file "%s" not recognized' % self.__embedding_path)
+            raise ValueError('embeddings file "%s" not existed' % self.__embedding_path)
 
         word_num = 0
         embedding_size = 0
         embedding_num = 0
 
-        with open(self.__embedding_path, encoding='latin-1') as f:
-            for line in f:
+        # some too long word maybe error, decode after read bytes
+        with bz2.open(self.__embedding_path, mode='rb') as f:
+            for line_b in f:
+                try:
+                    line = line_b.decode('utf-8')
+                except UnicodeDecodeError:
+                    # line = line_b.decode('latin-1')
+                    continue
+
                 line_split = line.strip().split(' ')
                 if word_num == 0:
                     embedding_num = int(line_split[0])

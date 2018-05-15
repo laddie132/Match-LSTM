@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 def main():
     logger.info('------------Match-LSTM TEST INPUT--------------')
     logger.info('loading config file...')
-    global_config = read_config()
+    global_config = read_config('config/CMRC.yaml')
 
     # set random seed
     seed = global_config['model']['global']['random_seed']
