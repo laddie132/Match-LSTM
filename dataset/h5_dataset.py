@@ -10,15 +10,15 @@ import torch
 import torch.utils.data
 import logging
 import pandas as pd
-from dataset.preprocess_data import PreprocessData
+from dataset.preprocess_squad import PreprocessData
 from utils.functions import *
 
 logger = logging.getLogger(__name__)
 
 
-class SquadDataset:
+class Dataset:
     """
-    dataset module for SQuAD
+    dataset module
     """
 
     def __init__(self, global_config):
@@ -37,8 +37,8 @@ class SquadDataset:
         load squad hdf5 file
         :return:
         """
-        squad_h5_path = self.global_config['data']['dataset_h5']
-        with h5py.File(squad_h5_path, 'r') as f:
+        h5_path = self.global_config['data']['dataset_h5']
+        with h5py.File(h5_path, 'r') as f:
             f_data = f['data']
 
             for name in ['train', 'dev']:

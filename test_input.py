@@ -9,7 +9,7 @@ import logging
 import nltk
 import numpy as np
 import matplotlib.pyplot as plt
-from dataset.squad_dataset import SquadDataset
+from dataset.h5_dataset import Dataset
 from models.match_model import MatchLSTMModel
 from utils.load_config import init_logging, read_config
 from utils.functions import to_long_tensor, count_parameters, draw_heatmap_sea
@@ -30,7 +30,7 @@ def main():
     torch.no_grad()  # make sure all tensors below have require_grad=False
 
     logger.info('reading squad dataset...')
-    dataset = SquadDataset(global_config)
+    dataset = Dataset(global_config)
 
     logger.info('constructing model...')
     model = MatchLSTMModel(global_config)
@@ -107,13 +107,13 @@ def main():
                      xlabels=context_token[s:e],
                      ylabels=question_token,
                      answer=answer,
-                     save_path='data/test-left.png',
+                     save_path='cmrc_data/test-left.png',
                      bottom=0.45)
     draw_heatmap_sea(x_right,
                      xlabels=context_token[s:e],
                      ylabels=question_token,
                      answer=answer,
-                     save_path='data/test-right.png',
+                     save_path='cmrc_data/test-right.png',
                      bottom=0.45)
 
     if global_config['model']['interaction']['enable_self_match']:
@@ -124,14 +124,14 @@ def main():
                          xlabels=context_token[s:e],
                          ylabels=context_token[s:e],
                          answer=answer,
-                         save_path='data/test-self-left.png',
+                         save_path='cmrc_data/test-self-left.png',
                          inches=(11, 11),
                          bottom=0.2)
         draw_heatmap_sea(x_self_right,
                          xlabels=context_token[s:e],
                          ylabels=context_token[s:e],
                          answer=answer,
-                         save_path='data/test-self-right.png',
+                         save_path='cmrc_data/test-self-right.png',
                          inches=(11, 11),
                          bottom=0.2)
     # plt.show()

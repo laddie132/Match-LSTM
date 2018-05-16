@@ -8,7 +8,7 @@ import os
 import torch
 import logging
 import argparse
-from dataset.squad_dataset import SquadDataset
+from dataset.h5_dataset import Dataset
 from models.match_model import MatchLSTMModel
 from utils.load_config import init_logging, read_config
 from models.loss import MyNLLLoss
@@ -36,7 +36,7 @@ def test(config_path, out_path):
     torch.set_grad_enabled(False)  # make sure all tensors below have require_grad=False,
 
     logger.info('reading squad dataset...')
-    dataset = SquadDataset(global_config)
+    dataset = Dataset(global_config)
 
     logger.info('constructing model...')
     model = MatchLSTMModel(global_config).to(device)
@@ -59,6 +59,7 @@ def test(config_path, out_path):
     batch_size = global_config['test']['batch_size']
     # batch_dev_data = dataset.get_dataloader_dev(batch_size)
     batch_dev_data = list(dataset.get_batch_dev(batch_size))
+    is_english = global_config['test']['is_english']
 
     # to just evaluate score or write answer to file
     if out_path is None:
@@ -77,7 +78,8 @@ def test(config_path, out_path):
                                        device=device,
                                        enable_char=enable_char,
                                        batch_char_func=dataset.gen_batch_with_char,
-                                       id_to_word_func=dataset.sentence_id2word)
+                                       id_to_word_func=dataset.sentence_id2word,
+                                       is_english=is_english)
         samples_id = dataset.get_all_samples_id_dev()
         ans_with_id = dict(zip(samples_id, predict_ans))
 
@@ -88,7 +90,7 @@ def test(config_path, out_path):
     logging.info('finished.')
 
 
-def predict_on_model(model, batch_data, device, enable_char, batch_char_func, id_to_word_func):
+def predict_on_model(model, batch_data, device, enable_char, batch_char_func, id_to_word_func, is_english):
     batch_cnt = len(batch_data)
     answer = []
 
@@ -101,7 +103,9 @@ def predict_on_model(model, batch_data, device, enable_char, batch_char_func, id
         _, tmp_ans_range, _ = model.forward(bat_context, bat_question, bat_context_char, bat_question_char)
         tmp_context_ans = zip(bat_context.cpu().data.numpy(),
                               tmp_ans_range.cpu().data.numpy())
-        tmp_ans = [' '.join(id_to_word_func(c[a[0]:(a[1] + 1)])) for c, a in tmp_context_ans]
+
+        link_char = ' ' if is_english else ''
+        tmp_ans = [link_char.join(id_to_word_func(c[a[0]:(a[1] + 1)])) for c, a in tmp_context_ans]
         answer += tmp_ans
 
         logging.info('batch=%d/%d' % (bnum, batch_cnt))

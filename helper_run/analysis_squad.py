@@ -10,7 +10,7 @@ import seaborn as sns
 sys.path.append(os.getcwd())
 
 import logging
-from dataset.squad_dataset import SquadDataset
+from dataset.h5_dataset import Dataset
 from utils.load_config import init_logging, read_config
 import matplotlib.pyplot as plt
 
@@ -24,7 +24,7 @@ def main():
     global_config = read_config()
 
     logger.info('reading squad dataset...')
-    dataset = SquadDataset(global_config)
+    dataset = Dataset(global_config)
 
     train_context_len_cnt, train_context_len = dataset.gather_context_seq_len('train')
     dev_context_len_cnt, dev_context_len = dataset.gather_context_seq_len('dev')

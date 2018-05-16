@@ -8,7 +8,7 @@ import torch
 import logging
 import argparse
 import torch.optim as optim
-from dataset.squad_dataset import SquadDataset
+from dataset.h5_dataset import Dataset
 from models.match_model import MatchLSTMModel
 from models.loss import MyNLLLoss, RLLoss
 from utils.load_config import init_logging, read_config
@@ -35,7 +35,7 @@ def train(config_path):
         raise ValueError("CUDA is not abaliable, please unable CUDA in config file")
 
     logger.info('reading squad dataset...')
-    dataset = SquadDataset(global_config)
+    dataset = Dataset(global_config)
 
     logger.info('constructing model...')
     model = MatchLSTMModel(global_config).to(device)

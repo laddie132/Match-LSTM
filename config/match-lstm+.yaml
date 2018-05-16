@@ -1,14 +1,14 @@
 data:
   dataset:
-    train_path: data/SQuAD/train-v1.1.json
-    dev_path: data/SQuAD/dev-v1.1.json
-  dataset_h5: data/squad_glove.h5
+    train_path: squad_data/SQuAD/train-v1.1.json
+    dev_path: squad_data/SQuAD/dev-v1.1.json
+  dataset_h5: squad_data/squad_glove.h5
   ignore_max_len: 600 # context token len > ignore_max_len will be dropped
 
-  embedding_path: data/glove.840B.300d.zip
+  embedding_path: squad_data/glove.840B.300d.zip
 
-  model_path: data/model-weight.pt
-  checkpoint_path: data/checkpoint
+  model_path: squad_data/model-weight.pt
+  checkpoint_path: squad_data/checkpoint
 
 model:
   global:
@@ -69,3 +69,4 @@ train:
 test:
   batch_size: 32
   enable_cuda: True
+  is_english: True # judge what character two words split with, ' ' for english, '' for chinese

@@ -103,12 +103,6 @@ examples.py
 test_example.py
 
 logs/
-data/glove.840B.300d.zip
-squad.h5
-glove.840B.300d.h5
-model-weight.pt*
-oov_word.txt
-data
 test_example.ipynb
-cmrc_data/cmrc
 cmrc_data
+squad_data

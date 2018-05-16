@@ -6,7 +6,7 @@ __author__ = 'han'
 import torch
 import torch.nn as nn
 from models.layers import *
-from dataset.preprocess_data import PreprocessData
+from dataset.preprocess_squad import PreprocessData
 from utils.functions import answer_search, multi_scale_ptr
 
 
@@ -255,7 +255,7 @@ class MatchLSTMModel(torch.nn.Module):
 
         # answer range
         if not self.training and self.enable_search:
-            ans_range = answer_search(ans_range_prop, context_mask)
+            ans_range = answer_search(ans_range_prop, context_mask, max_tokens=55)
         else:
             _, ans_range = torch.max(ans_range_prop, dim=2)
 
