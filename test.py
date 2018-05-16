@@ -51,6 +51,8 @@ def test(config_path, out_path):
         model = MatchLSTMPlus(dataset_h5_path)
     elif model_choose == 'r-net':
         model = RNet(dataset_h5_path)
+    elif model_choose == 'm-reader':
+        model = MReader(dataset_h5_path)
     else:
         raise ValueError('model "%s" in config file not recoginized' % model_choose)
 
@@ -71,7 +73,7 @@ def test(config_path, out_path):
     logger.info('forwarding...')
 
     enable_char = False
-    if model_choose == 'match-lstm+' or model_choose == 'r-net' or (
+    if model_choose in global_config['global']['use_char_model'] or (
             model_choose == 'base' and model_config['encoder']['enable_char']):
         enable_char = True
     batch_size = global_config['test']['batch_size']

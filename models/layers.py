@@ -721,6 +721,7 @@ class MyRNNBase(torch.nn.Module):
         # get the last time state
         len_idx = (lengths - 1).view(-1, 1).expand(-1, o_unsort.size(2)).unsqueeze(0)
         o_last = o_unsort.gather(0, len_idx)
+        o_last = o_last.squeeze(0)
 
         return o_unsort, o_last
 
@@ -767,6 +768,8 @@ class AttentionPooling(torch.nn.Module):
 class SelfAttentionGated(torch.nn.Module):
     """
     Self-Attention Gated layer, it`s not weighted sum in the last, but just weighted
+    math: \softmax(W*\tanh(W*x)) * x
+
     Args:
         input_size: The number of expected features in the input x
 
@@ -799,6 +802,9 @@ class SelfAttentionGated(torch.nn.Module):
 
 
 class SelfGated(torch.nn.Module):
+    """
+    Self-Gated layer. math: \sigmoid(W*x) * x
+    """
     def __init__(self, input_size):
         super(SelfGated, self).__init__()
 
@@ -811,3 +817,182 @@ class SelfGated(torch.nn.Module):
         x = x * x_gt
 
         return x
+
+
+class SeqToSeqAtten(torch.nn.Module):
+    """
+    Args:
+        -
+    Inputs:
+        - h1: (seq1_len, batch, hidden_size)
+        - h1_mask: (batch, seq1_len)
+        - h2: (seq2_len, batch, hidden_size)
+        - h2_mask: (batch, seq2_len)
+    Outputs:
+        - output: (seq1_len, batch, hidden_size)
+        - alpha: (batch, seq1_len, seq2_len)
+    """
+
+    def __init__(self):
+        super(SeqToSeqAtten, self).__init__()
+
+    def forward(self, h1, h2, h2_mask):
+        h1 = h1.transpose(0, 1)
+        h2 = h2.transpose(0, 1)
+
+        alpha = h1.bmm(h2.transpose(1, 2))   # (batch, seq1_len, seq2_len)
+        alpha = masked_softmax(alpha, h2_mask.unsqueeze(1), dim=2)     # (batch, seq1_len, seq2_len)
+
+        alpha_seq2 = alpha.bmm(h2)  # (batch, seq1_len, hidden_size)
+        alpha_seq2 = alpha_seq2.transpose(0, 1)
+
+        return alpha_seq2, alpha
+
+
+class SelfSeqAtten(torch.nn.Module):
+    """
+    Args:
+        -
+    Inputs:
+        - h: (seq_len, batch, hidden_size)
+        - h_mask: (batch, seq_len)
+    Outputs:
+        - output: (seq_len, batch, hidden_size)
+        - alpha: (batch, seq_len, seq_len)
+    """
+    def __init__(self):
+        super(SelfSeqAtten, self).__init__()
+
+    def forward(self, h, h_mask):
+        h = h.transpose(0, 1)
+        batch, seq_len, _ = h.shape
+
+        alpha = h.bmm(h.transpose(1, 2))  # (batch, seq_len, seq_len)
+
+        # make element i==j to zero
+        mask = torch.eye(seq_len, dtype=torch.uint8, device=h.device)
+        mask = mask.unsqueeze(0)
+        alpha.masked_fill_(mask, 0.)
+
+        alpha = masked_softmax(alpha, h_mask.unsqueeze(1), dim=2)
+        alpha_seq = alpha.bmm(h)
+
+        alpha_seq = alpha_seq.transpose(0, 1)
+        return alpha_seq, alpha
+
+
+class SFU(torch.nn.Module):
+    """
+    only two input, one input vector and one fusion vector
+
+    Args:
+        - input_size:
+        - fusions_size:
+    Inputs:
+        - input: (seq_len, batch, input_size)
+        - fusions: (seq_len, batch, fusions_size)
+    Outputs:
+        - output: (seq_len, batch, input_size)
+    """
+
+    def __init__(self, input_size, fusions_size):
+        super(SFU, self).__init__()
+
+        self.linear_r = torch.nn.Linear(input_size + fusions_size, input_size)
+        self.linear_g = torch.nn.Linear(input_size + fusions_size, input_size)
+
+    def forward(self, input, fusions):
+        m = torch.cat((input, fusions), dim=-1)
+
+        r = F.tanh(self.linear_r(m))        # (seq_len, batch, input_size)
+        g = F.sigmoid(self.linear_g(m))     # (seq_len, batch, input_size)
+        o = g * r + (1 - g) * input
+
+        return o
+
+
+class MemPtrNet(torch.nn.Module):
+    """
+    memory pointer net
+    Args:
+        - input_size: zs and hc size
+        - hidden_size:
+        - dropout_p:
+    Inputs:
+        - zs: (batch, input_size)
+        - hc: (seq_len, batch, input_size)
+        - hc_mask: (batch, seq_len)
+    Outputs:
+        - ans_out: (ans_len, batch, seq_len)
+        - zs_new: (batch, input_size)
+    """
+
+    def __init__(self, input_size, hidden_size, dropout_p):
+        super(MemPtrNet, self).__init__()
+
+        self.start_net = ForwardNet(input_size=input_size*3, hidden_size=hidden_size, dropout_p=dropout_p)
+        self.start_sfu = SFU(input_size, input_size)
+        self.end_net = ForwardNet(input_size=input_size*3, hidden_size=hidden_size, dropout_p=dropout_p)
+        self.end_sfu = SFU(input_size, input_size)
+
+        self.dropout = torch.nn.Dropout(dropout_p)
+
+    def forward(self, hc, hc_mask, zs):
+        hc = self.dropout(hc)
+
+        # start position
+        zs_ep = zs.unsqueeze(0).expand(hc.size())  # (seq_len, batch, input_size)
+        x = torch.cat((hc, zs_ep, hc*zs_ep), dim=-1)    # (seq_len, batch, input_size*3)
+        start_p = self.start_net(x, hc_mask)     # (batch, seq_len)
+
+        us = start_p.unsqueeze(1).bmm(hc.transpose(0, 1)).squeeze(1)       # (batch, input_size)
+        ze = self.start_sfu(zs, us)     # (batch, input_size)
+
+        # end position
+        ze_ep = ze.unsqueeze(0).expand(hc.size())
+        x = torch.cat((hc, ze_ep, hc*ze_ep), dim=-1)
+        end_p = self.end_net(x, hc_mask)
+
+        ue = end_p.unsqueeze(1).bmm(hc.transpose(0, 1)).squeeze(1)
+        zs_new = self.end_sfu(ze, ue)
+
+        ans_out = torch.stack([start_p, end_p], dim=0)  # (ans_len, batch, seq_len)
+
+        # make sure not nan loss
+        new_mask = 1 - hc_mask.unsqueeze(0).type(torch.uint8)
+        ans_out.masked_fill_(new_mask, 1e-6)
+
+        return ans_out, zs_new
+
+
+class ForwardNet(torch.nn.Module):
+    """
+    one hidden layer and one softmax layer.
+    Args:
+        - input_size:
+        - hidden_size:
+        - output_size:
+        - dropout_p:
+    Inputs:
+        - x: (seq_len, batch, input_size)
+        - x_mask: (batch, seq_len)
+    Outputs:
+        - beta: (batch, seq_len)
+    """
+
+    def __init__(self, input_size, hidden_size, dropout_p):
+        super(ForwardNet, self).__init__()
+
+        self.linear_h = torch.nn.Linear(input_size, hidden_size)
+        self.linear_o = torch.nn.Linear(hidden_size, 1)
+
+        self.dropout = torch.nn.Dropout(p=dropout_p)
+
+    def forward(self, x, x_mask):
+        h = F.relu(self.linear_h(x))
+        h = self.dropout(h)
+        o = self.linear_o(h)
+        o = o.squeeze(2).transpose(0, 1)    # (batch, seq_len)
+
+        beta = masked_softmax(o, x_mask, dim=1)
+        return beta
