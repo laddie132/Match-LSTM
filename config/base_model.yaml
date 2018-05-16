@@ -14,7 +14,7 @@ encoder:
   char_cnn_filter_num: [75, 75, 75, 75]
   char_encode_type: 'LSTM' # 'LSTM' or 'CNN'
   char_trainable: True
-  enable_char: True
+  enable_char: False
 
   # word-level
   word_layers: 1

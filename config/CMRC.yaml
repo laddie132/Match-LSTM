@@ -5,8 +5,8 @@ data:
   dataset_h5: cmrc_data/cmrc_embedding.h5
   ignore_max_len: 600 # in train data, context token len > ignore_max_len will be dropped
 
-  embedding_path: /Users/han/cmrc/embedding/sgns.merge.word.bz2
-#  embedding_path: /Users/han/cmrc/embedding/sgns.target.word-character.char1-2.dynwin5.thr10.neg5.dim300.iter5.bz2
+  embedding_path: /Users/han/embeddings/sgns.merge.word.bz2
+#  embedding_path: /Users/han/embeddings/sgns.target.word-character.char1-2.dynwin5.thr10.neg5.dim300.iter5.bz2
 
   model_path: cmrc_data/model-weight.pt
   checkpoint_path: cmrc_data/checkpoint

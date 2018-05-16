@@ -86,16 +86,18 @@ def main():
         answer3 = ['「战史演武」&「争霸演武」']
 
     # change here to select questions
-    question = question1
-    answer = answer1[0]
+    question = question2
+    answer = answer2[0]
 
     # preprocess
     if global_config['test']['is_english']:
         context_token = nltk.word_tokenize(context)
         question_token = nltk.word_tokenize(question)
+        link_char = ' '
     else:
         context_token = hanlp_segment(context)
         question_token = hanlp_segment(question)
+        link_char = ''
 
     context_array = np.array(context_token)
 
@@ -118,7 +120,7 @@ def main():
     out_answer_id = context_id[start:end]
     out_answer = dataset.sentence_id2word(out_answer_id)
 
-    logging.info('Predict Answer: ' + ' '.join(out_answer))
+    logging.info('Predict Answer: ' + link_char.join(out_answer))
 
     # to show on visdom
     s = 0
