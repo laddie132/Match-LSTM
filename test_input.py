@@ -13,6 +13,7 @@ from dataset.h5_dataset import Dataset
 from models import *
 from utils.load_config import init_logging, read_config
 from utils.functions import to_long_tensor, count_parameters, draw_heatmap_sea
+from dataset.preprocess_cmrc import hanlp_segment
 
 init_logging()
 logger = logging.getLogger(__name__)
@@ -59,28 +60,42 @@ def main():
     weight = torch.load(model_weight_path, map_location=lambda storage, loc: storage)
     model.load_state_dict(weight, strict=False)
 
-    # manual input qa
-    context = "In 1870, Tesla moved to Karlovac, to attend school at the Higher Real Gymnasium, where he was " \
-             "profoundly influenced by a math teacher Martin Sekuli\u0107.:32 The classes were held in German, " \
-             "as it was a school within the Austro-Hungarian Military Frontier. Tesla was able to perform integral " \
-             "calculus in his head, which prompted his teachers to believe that he was cheating. He finished a " \
-             "four-year term in three years, graduating in 1873.:33 "
-    question1 = "What language were classes held in at Tesla's school?"
-    answer1 = ["German"]
+    if global_config['test']['is_english']:
+        context = "In 1870, Tesla moved to Karlovac, to attend school at the Higher Real Gymnasium, where he was " \
+                 "profoundly influenced by a math teacher Martin Sekuli\u0107.:32 The classes were held in German, " \
+                 "as it was a school within the Austro-Hungarian Military Frontier. Tesla was able to perform integral " \
+                 "calculus in his head, which prompted his teachers to believe that he was cheating. He finished a " \
+                 "four-year term in three years, graduating in 1873.:33 "
+        question1 = "What language were classes held in at Tesla's school?"
+        answer1 = ["German"]
 
-    question2 = "Who was Tesla influenced by while in school?"
-    answer2 = ["Martin Sekuli\u0107"]
+        question2 = "Who was Tesla influenced by while in school?"
+        answer2 = ["Martin Sekuli\u0107"]
 
-    question3 = "Why did Tesla go to Karlovac?"
-    answer3 = ["attend school at the Higher Real Gymnasium", 'to attend school']
+        question3 = "Why did Tesla go to Karlovac?"
+        answer3 = ["attend school at the Higher Real Gymnasium", 'to attend school']
+    else:
+        context = "《战国无双3》（）是由光荣和ω-force开发的战国无双系列的正统第三续作。本作以三大故事为主轴，分别是以武田信玄等人为主的《关东三国志》，织田信长等人为主的《战国三杰》，石田三成等人为主的《关原的年轻武者》，丰富游戏内的剧情。此部份专门介绍角色，欲知武器情报、奥义字或擅长攻击类型等，请至战国无双系列1.由于乡里大辅先生因故去世，不得不寻找其他声优接手。从猛将传 and Z开始。2.战国无双 编年史的原创男女主角亦有专属声优。此模式是任天堂游戏谜之村雨城改编的新增模式。本作中共有20张战场地图（不含村雨城），后来发行的猛将传再新增3张战场地图。但游戏内战役数量繁多，部分地图会有兼用的状况，战役虚实则是以光荣发行的2本「战国无双3 人物真书」内容为主，以下是相关介绍。（注：前方加☆者为猛将传新增关卡及地图。）合并本篇和猛将传的内容，村雨城模式剔除，战国史模式可直接游玩。主打两大模式「战史演武」&「争霸演武」。系列作品外传作品"
+        question1 = "《战国无双3》是由哪两个公司合作开发的？"
+        answer1 = ['光荣和ω-force']
+
+        question2 = '男女主角亦有专属声优这一模式是由谁改编的？'
+        answer2 = ['村雨城', '任天堂游戏谜之村雨城']
+
+        question3 = '战国史模式主打哪两个模式？'
+        answer3 = ['「战史演武」&「争霸演武」']
 
     # change here to select questions
     question = question1
     answer = answer1[0]
 
     # preprocess
-    context_token = nltk.word_tokenize(context)
-    question_token = nltk.word_tokenize(question)
+    if global_config['test']['is_english']:
+        context_token = nltk.word_tokenize(context)
+        question_token = nltk.word_tokenize(question)
+    else:
+        context_token = hanlp_segment(context)
+        question_token = hanlp_segment(question)
 
     context_array = np.array(context_token)
 

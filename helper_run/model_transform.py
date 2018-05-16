@@ -36,9 +36,9 @@ def transform(pre_model_path, tar_model_path, cur_model):
     torch.save(new_weight, tar_model_path)
 
 
-def main(pre_model_path, tar_model_path):
+def main(config_path, pre_model_path, tar_model_path):
     logger.info('loading config file...')
-    global_config = read_config()
+    global_config = read_config(config_path)
 
     logger.info('constructing model...')
     model_choose = global_config['global']['model']
@@ -63,8 +63,9 @@ def main(pre_model_path, tar_model_path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="transform a old model weight to the newest network")
-    parser.add_argument('--input', '-i', required=True, nargs=1, dest='pre_weight')
-    parser.add_argument('--output', '-o', required=True, nargs=1, dest='tar_weight')
+    parser.add_argument('--config', '-c', required=False, dest='config_path', default='config/global_config.yaml')
+    parser.add_argument('--input', '-i', required=True, dest='pre_weight')
+    parser.add_argument('--output', '-o', required=True, dest='tar_weight')
 
     args = parser.parse_args()
-    main(args.pre_weight[0], args.tar_weight[0])
+    main(args.config_path, args.pre_weight, args.tar_weight)

@@ -13,7 +13,7 @@ data:
 
 global:
   random_seed: 123
-  model: match-lstm+ # 'match-lstm', 'match-lstm+', 'r-net' or 'base'. Note that 'base' model is customized by base_model.yaml
+  model: base # 'match-lstm', 'match-lstm+', 'r-net' or 'base'. Note that 'base' model is customized by base_model.yaml
 
 train:
   batch_size: 32
