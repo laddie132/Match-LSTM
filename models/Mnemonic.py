@@ -67,7 +67,13 @@ class MReader(torch.nn.Module):
                                  dropout_p=emb_dropout_p)
 
         self.aligner = torch.nn.ModuleList([SeqToSeqAtten() for _ in range(self.num_align_hops)])
+        self.aligner_sfu = torch.nn.ModuleList([SFU(input_size=hidden_size * 2,
+                                                    fusions_size=hidden_size * 2 * 3) for _ in
+                                                range(self.num_align_hops)])
         self.self_aligner = torch.nn.ModuleList([SelfSeqAtten() for _ in range(self.num_align_hops)])
+        self.self_aligner_sfu = torch.nn.ModuleList([SFU(input_size=hidden_size * 2,
+                                                         fusions_size=hidden_size * 2 * 3)
+                                                     for _ in range(self.num_align_hops)])
         self.aggregation = torch.nn.ModuleList([MyRNNBase(mode=hidden_mode,
                                                           input_size=hidden_size * 2,
                                                           hidden_size=hidden_size,
@@ -107,14 +113,20 @@ class MReader(torch.nn.Module):
         for i in range(self.num_align_hops):
             # align: (seq_len, batch, hidden_size*2)
             qt_align_ct, alpha = self.aligner[i](align_ct, question_encode, question_mask)
+            bar_ct = self.aligner_sfu[i](align_ct, torch.cat([qt_align_ct,
+                                                              align_ct * qt_align_ct,
+                                                              align_ct - qt_align_ct], dim=-1))
             vis_param = {'match': alpha}
 
             # self-align: (seq_len, batch, hidden_size*2)
-            ct_align_ct, self_alpha = self.self_aligner[i](qt_align_ct, context_mask)
+            ct_align_ct, self_alpha = self.self_aligner[i](bar_ct, context_mask)
+            hat_ct = self.self_aligner_sfu[i](bar_ct, torch.cat([ct_align_ct,
+                                                                 bar_ct * ct_align_ct,
+                                                                 bar_ct - ct_align_ct], dim=-1))
             vis_param = {'self-match': self_alpha}
 
             # aggregation: (seq_len, batch, hidden_size*2)
-            align_ct, _ = self.aggregation[i](ct_align_ct, context_mask)
+            align_ct, _ = self.aggregation[i](hat_ct, context_mask)
 
         # pointer net: (answer_len, batch, context_len)
         for i in range(self.num_ptr_hops):
