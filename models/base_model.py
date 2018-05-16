@@ -10,7 +10,7 @@ from dataset.preprocess_data import PreprocessData
 from utils.functions import answer_search, multi_scale_ptr
 
 
-class MatchLSTMModel(torch.nn.Module):
+class BaseModel(torch.nn.Module):
     """
     match-lstm model for machine comprehension
     Args:
@@ -29,7 +29,7 @@ class MatchLSTMModel(torch.nn.Module):
     """
 
     def __init__(self, global_config):
-        super(MatchLSTMModel, self).__init__()
+        super(BaseModel, self).__init__()
 
         # set config
         hidden_size = global_config['model']['global']['hidden_size']

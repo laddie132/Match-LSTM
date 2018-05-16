@@ -9,7 +9,7 @@ import logging
 import argparse
 import torch.optim as optim
 from dataset.squad_dataset import SquadDataset
-from models.match_model import MatchLSTMModel
+from models import *
 from models.loss import MyNLLLoss, RLLoss
 from utils.load_config import init_logging, read_config
 from utils.eval import eval_on_model
@@ -24,7 +24,7 @@ def train(config_path):
     global_config = read_config(config_path)
 
     # set random seed
-    seed = global_config['model']['global']['random_seed']
+    seed = global_config['global']['random_seed']
     torch.manual_seed(seed)
 
     enable_cuda = global_config['train']['enable_cuda']
@@ -38,7 +38,19 @@ def train(config_path):
     dataset = SquadDataset(global_config)
 
     logger.info('constructing model...')
-    model = MatchLSTMModel(global_config).to(device)
+    model_choose = global_config['global']['model']
+    if model_choose == 'base':
+        model = BaseModel(global_config)
+    elif model_choose == 'match-lstm':
+        model = MatchLSTM(global_config)
+    elif model_choose == 'match-lstm+':
+        model = MatchLSTMPlus(global_config)
+    elif model_choose == 'r-net':
+        model = RNet(global_config)
+    else:
+        raise ValueError('model "%s" in config file not recoginized' % model_choose)
+
+    model = model.to(device)
     criterion = MyNLLLoss()
 
     # optimizer

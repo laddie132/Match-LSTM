@@ -12,7 +12,7 @@ import argparse
 import torch
 import logging
 from collections import OrderedDict
-from models.match_model import MatchLSTMModel
+from models import *
 from utils.load_config import init_logging, read_config
 
 init_logging()
@@ -41,7 +41,17 @@ def main(pre_model_path, tar_model_path):
     global_config = read_config()
 
     logger.info('constructing model...')
-    model = MatchLSTMModel(global_config)
+    model_choose = global_config['global']['model']
+    if model_choose == 'base':
+        model = BaseModel(global_config)
+    elif model_choose == 'match-lstm':
+        model = MatchLSTM(global_config)
+    elif model_choose == 'match-lstm+':
+        model = MatchLSTMPlus(global_config)
+    elif model_choose == 'r-net':
+        model = RNet(global_config)
+    else:
+        raise ValueError('model "%s" in config file not recoginized' % model_choose)
 
     logging.info("transforming model from '%s' to '%s'..." % (pre_model_path, tar_model_path))
     transform(pre_model_path, tar_model_path, model)

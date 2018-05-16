@@ -110,3 +110,5 @@ model-weight.pt*
 oov_word.txt
 data
 test_example.ipynb
+cmrc_data
+squad_data

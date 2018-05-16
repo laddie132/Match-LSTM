@@ -10,9 +10,27 @@ data:
   model_path: data/model-weight.pt
   checkpoint_path: data/checkpoint
 
+global:
+  random_seed: 123
+  model: match-lstm+ # 'match-lstm', 'match-lstm+', 'r-net' or 'base'
+
+train:
+  batch_size: 32
+  valid_batch_size: 32
+  epoch: 30
+  enable_cuda: True
+
+  optimizer: 'adamax'  # adam, sgd, adamax, adadelta(default is adamax)
+  learning_rate: 0.002  # only for sgd
+  clip_grad_norm: 5
+
+test:
+  batch_size: 32
+  enable_cuda: True
+
+# only work on 'base' model
 model:
   global:
-    random_seed: 123
     dropout_p: 0.4  # dropout between other layers
     emb_dropout_p: 0.1  # dropout between word/char embeddings and encoder
     hidden_size: 150  # one-direction
@@ -55,17 +73,3 @@ model:
     init_ptr_hidden: linear # pooling, linear, None
     ptr_bidirection: False
     answer_search: True
-
-train:
-  batch_size: 32
-  valid_batch_size: 32
-  epoch: 30
-  enable_cuda: True
-
-  optimizer: 'adamax'  # adam, sgd, adamax, adadelta(default is adamax)
-  learning_rate: 0.002  # only for sgd
-  clip_grad_norm: 5
-
-test:
-  batch_size: 32
-  enable_cuda: True
