@@ -26,7 +26,7 @@ class MatchLSTMPlus(torch.nn.Module):
         vis_alpha: to show on visdom
     """
 
-    def __init__(self, global_config):
+    def __init__(self, dataset_h5_path):
         super(MatchLSTMPlus, self).__init__()
 
         # set config
@@ -51,8 +51,8 @@ class MatchLSTMPlus(torch.nn.Module):
         self.enable_search = True
 
         # construct model
-        self.embedding = GloveEmbedding(dataset_h5_path=global_config['data']['dataset_h5'])
-        self.char_embedding = CharEmbedding(dataset_h5_path=global_config['data']['dataset_h5'],
+        self.embedding = GloveEmbedding(dataset_h5_path=dataset_h5_path)
+        self.char_embedding = CharEmbedding(dataset_h5_path=dataset_h5_path,
                                             embedding_size=char_embedding_size,
                                             trainable=True)
 

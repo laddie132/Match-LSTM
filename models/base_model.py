@@ -28,58 +28,58 @@ class BaseModel(torch.nn.Module):
         vis_alpha: to show on visdom
     """
 
-    def __init__(self, global_config):
+    def __init__(self, dataset_h5_path, model_config):
         super(BaseModel, self).__init__()
 
         # set config
-        hidden_size = global_config['model']['global']['hidden_size']
-        hidden_mode = global_config['model']['global']['hidden_mode']
-        dropout_p = global_config['model']['global']['dropout_p']
-        emb_dropout_p = global_config['model']['global']['emb_dropout_p']
-        enable_layer_norm = global_config['model']['global']['layer_norm']
+        hidden_size = model_config['global']['hidden_size']
+        hidden_mode = model_config['global']['hidden_mode']
+        dropout_p = model_config['global']['dropout_p']
+        emb_dropout_p = model_config['global']['emb_dropout_p']
+        enable_layer_norm = model_config['global']['layer_norm']
 
-        word_embedding_size = global_config['model']['encoder']['word_embedding_size']
-        char_embedding_size = global_config['model']['encoder']['char_embedding_size']
-        encoder_word_layers = global_config['model']['encoder']['word_layers']
-        encoder_char_layers = global_config['model']['encoder']['char_layers']
-        char_trainable = global_config['model']['encoder']['char_trainable']
-        char_type = global_config['model']['encoder']['char_encode_type']
-        char_cnn_filter_size = global_config['model']['encoder']['char_cnn_filter_size']
-        char_cnn_filter_num = global_config['model']['encoder']['char_cnn_filter_num']
-        self.enable_char = global_config['model']['encoder']['enable_char']
+        word_embedding_size = model_config['encoder']['word_embedding_size']
+        char_embedding_size = model_config['encoder']['char_embedding_size']
+        encoder_word_layers = model_config['encoder']['word_layers']
+        encoder_char_layers = model_config['encoder']['char_layers']
+        char_trainable = model_config['encoder']['char_trainable']
+        char_type = model_config['encoder']['char_encode_type']
+        char_cnn_filter_size = model_config['encoder']['char_cnn_filter_size']
+        char_cnn_filter_num = model_config['encoder']['char_cnn_filter_num']
+        self.enable_char = model_config['encoder']['enable_char']
 
         # when mix-encode, use r-net methods, that concat char-encoding and word-embedding to represent sequence
-        self.mix_encode = global_config['model']['encoder']['mix_encode']
-        encoder_bidirection = global_config['model']['encoder']['bidirection']
+        self.mix_encode = model_config['encoder']['mix_encode']
+        encoder_bidirection = model_config['encoder']['bidirection']
         encoder_direction_num = 2 if encoder_bidirection else 1
 
-        match_lstm_bidirection = global_config['model']['interaction']['match_lstm_bidirection']
-        self_match_lstm_bidirection = global_config['model']['interaction']['self_match_bidirection']
-        self.enable_self_match = global_config['model']['interaction']['enable_self_match']
-        self.enable_birnn_after_self = global_config['model']['interaction']['birnn_after_self']
-        gated_attention = global_config['model']['interaction']['gated_attention']
-        self.enable_self_gated = global_config['model']['interaction']['self_gated']
-        self.enable_question_match = global_config['model']['interaction']['question_match']
+        match_lstm_bidirection = model_config['interaction']['match_lstm_bidirection']
+        self_match_lstm_bidirection = model_config['interaction']['self_match_bidirection']
+        self.enable_self_match = model_config['interaction']['enable_self_match']
+        self.enable_birnn_after_self = model_config['interaction']['birnn_after_self']
+        gated_attention = model_config['interaction']['gated_attention']
+        self.enable_self_gated = model_config['interaction']['self_gated']
+        self.enable_question_match = model_config['interaction']['question_match']
 
         match_rnn_direction_num = 2 if match_lstm_bidirection else 1
         self_match_rnn_direction_num = 2 if self_match_lstm_bidirection else 1
 
-        num_hops = global_config['model']['output']['num_hops']
-        self.scales = global_config['model']['output']['scales']
-        ptr_bidirection = global_config['model']['output']['ptr_bidirection']
-        self.init_ptr_hidden_mode = global_config['model']['output']['init_ptr_hidden']
-        self.enable_search = global_config['model']['output']['answer_search']
+        num_hops = model_config['output']['num_hops']
+        self.scales = model_config['output']['scales']
+        ptr_bidirection = model_config['output']['ptr_bidirection']
+        self.init_ptr_hidden_mode = model_config['output']['init_ptr_hidden']
+        self.enable_search = model_config['output']['answer_search']
 
         assert num_hops > 0, 'Pointer Net number of hops should bigger than zero'
         if num_hops > 1:
             assert not ptr_bidirection, 'Pointer Net bidirectional should with number of one hop'
 
         # construct model
-        self.embedding = GloveEmbedding(dataset_h5_path=global_config['data']['dataset_h5'])
+        self.embedding = GloveEmbedding(dataset_h5_path=dataset_h5_path)
         encode_in_size = word_embedding_size
 
         if self.enable_char:
-            self.char_embedding = CharEmbedding(dataset_h5_path=global_config['data']['dataset_h5'],
+            self.char_embedding = CharEmbedding(dataset_h5_path=dataset_h5_path,
                                                 embedding_size=char_embedding_size,
                                                 trainable=char_trainable)
             if char_type == 'LSTM':

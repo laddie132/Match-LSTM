@@ -39,14 +39,16 @@ def train(config_path):
 
     logger.info('constructing model...')
     model_choose = global_config['global']['model']
+    dataset_h5_path = global_config['data']['dataset_h5']
     if model_choose == 'base':
-        model = BaseModel(global_config)
+        model = BaseModel(dataset_h5_path,
+                          model_config=read_config('config/base_model.yaml'))
     elif model_choose == 'match-lstm':
-        model = MatchLSTM(global_config)
+        model = MatchLSTM(dataset_h5_path)
     elif model_choose == 'match-lstm+':
-        model = MatchLSTMPlus(global_config)
+        model = MatchLSTMPlus(dataset_h5_path)
     elif model_choose == 'r-net':
-        model = RNet(global_config)
+        model = RNet(dataset_h5_path)
     else:
         raise ValueError('model "%s" in config file not recoginized' % model_choose)
 
@@ -204,7 +206,7 @@ if __name__ == '__main__':
     init_logging()
 
     parser = argparse.ArgumentParser(description="train on the model")
-    parser.add_argument('--config', '-c', required=False, dest='config_path', default='config/model_config.yaml')
+    parser.add_argument('--config', '-c', required=False, dest='config_path', default='config/global_config.yaml')
     args = parser.parse_args()
 
     train(args.config_path)

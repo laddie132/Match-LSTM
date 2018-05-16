@@ -23,7 +23,7 @@ def init_logging(config_path='config/logging_config.yaml'):
         logging.basicConfig(level=logging.DEBUG)
 
 
-def read_config(config_path='config/model_config.yaml'):
+def read_config(config_path='config/global_config.yaml'):
     """
     store the global parameters in the project
     :param config_path:

@@ -34,14 +34,16 @@ def main():
 
     logger.info('constructing model...')
     model_choose = global_config['global']['model']
+    dataset_h5_path = global_config['data']['dataset_h5']
     if model_choose == 'base':
-        model = BaseModel(global_config)
+        model = BaseModel(dataset_h5_path,
+                          model_config=read_config('config/base_model.yaml'))
     elif model_choose == 'match-lstm':
-        model = MatchLSTM(global_config)
+        model = MatchLSTM(dataset_h5_path)
     elif model_choose == 'match-lstm+':
-        model = MatchLSTMPlus(global_config)
+        model = MatchLSTMPlus(dataset_h5_path)
     elif model_choose == 'r-net':
-        model = RNet(global_config)
+        model = RNet(dataset_h5_path)
     else:
         raise ValueError('model "%s" in config file not recoginized' % model_choose)
 
@@ -126,7 +128,8 @@ def main():
                      save_path='data/test-right.png',
                      bottom=0.45)
 
-    if global_config['model']['interaction']['enable_self_match']:
+    enable_self_match = False
+    if enable_self_match:
         x_self_left = vis_param['self']['left']['alpha'][0, s:e, s:e].data.numpy()
         x_self_right = vis_param['self']['right']['alpha'][0, s:e, s:e].data.numpy()
 
