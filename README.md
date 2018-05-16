@@ -56,11 +56,11 @@ R-NET(paper)|72.3|80.6
 
 ### Train
 
-Run `python run.py train`.
+Run `python run.py train`
 
 ### Test
 
-Run `python run.py test [-o ans_file]`.
+Run `python run.py test [-o ans_file]`
 
 - -o ans_file: Output the answer of question and context with a unique id to ans_file. 
 
