@@ -41,8 +41,9 @@ def train(config_path):
     model_choose = global_config['global']['model']
     dataset_h5_path = global_config['data']['dataset_h5']
     if model_choose == 'base':
+        model_config = read_config('config/base_model.yaml')
         model = BaseModel(dataset_h5_path,
-                          model_config=read_config('config/base_model.yaml'))
+                          model_config)
     elif model_choose == 'match-lstm':
         model = MatchLSTM(dataset_h5_path)
     elif model_choose == 'match-lstm+':
@@ -93,7 +94,10 @@ def train(config_path):
     batch_dev_data = list(dataset.get_batch_dev(valid_batch_size))
 
     clip_grad_max = global_config['train']['clip_grad_norm']
-    enable_char = global_config['model']['encoder']['enable_char']
+    enable_char = False
+    if model_choose == 'match-lstm+' or model_choose == 'r-net' or (
+            model_choose == 'base' and model_config['encoder']['enable_char']):
+        enable_char = True
 
     best_valid_f1 = None
     # every epoch
