@@ -8,6 +8,7 @@ import torch
 import logging
 import nltk
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 from dataset.h5_dataset import Dataset
 from models import *
@@ -93,11 +94,15 @@ def main():
     if global_config['test']['is_english']:
         context_token = nltk.word_tokenize(context)
         question_token = nltk.word_tokenize(question)
+
         link_char = ' '
     else:
         context_token = hanlp_segment(context)
         question_token = hanlp_segment(question)
+
         link_char = ''
+        # mpl.rcParams['font.sans-serif'] = ['Microsoft YaHei']
+        mpl.rcParams['font.sans-serif'] = ['SimHei']
 
     context_array = np.array(context_token)
 
@@ -137,13 +142,13 @@ def main():
                      ylabels=question_token,
                      answer=answer,
                      save_path='cmrc_data/test-left.png',
-                     bottom=0.45)
+                     bottom=0.2)
     draw_heatmap_sea(x_right,
                      xlabels=context_token[s:e],
                      ylabels=question_token,
                      answer=answer,
                      save_path='cmrc_data/test-right.png',
-                     bottom=0.45)
+                     bottom=0.2)
 
     enable_self_match = False
     if enable_self_match:
