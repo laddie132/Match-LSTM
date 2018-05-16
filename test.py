@@ -9,7 +9,7 @@ import torch
 import logging
 import argparse
 from dataset.h5_dataset import Dataset
-from models.match_model import MatchLSTMModel
+from models import *
 from utils.load_config import init_logging, read_config
 from models.loss import MyNLLLoss
 from utils.eval import eval_on_model
@@ -23,7 +23,7 @@ def test(config_path, out_path):
     global_config = read_config(config_path)
 
     # set random seed
-    seed = global_config['model']['global']['random_seed']
+    seed = global_config['global']['random_seed']
     torch.manual_seed(seed)
 
     enable_cuda = global_config['test']['enable_cuda']
@@ -39,7 +39,21 @@ def test(config_path, out_path):
     dataset = Dataset(global_config)
 
     logger.info('constructing model...')
-    model = MatchLSTMModel(global_config).to(device)
+    model_choose = global_config['global']['model']
+    dataset_h5_path = global_config['data']['dataset_h5']
+    if model_choose == 'base':
+        model = BaseModel(dataset_h5_path,
+                          model_config=read_config('config/base_model.yaml'))
+    elif model_choose == 'match-lstm':
+        model = MatchLSTM(dataset_h5_path)
+    elif model_choose == 'match-lstm+':
+        model = MatchLSTMPlus(dataset_h5_path)
+    elif model_choose == 'r-net':
+        model = RNet(dataset_h5_path)
+    else:
+        raise ValueError('model "%s" in config file not recoginized' % model_choose)
+
+    model = model.to(device)
     model.eval()  # let training = False, make sure right dropout
 
     # load model weight
@@ -122,7 +136,7 @@ if __name__ == '__main__':
     init_logging()
 
     parser = argparse.ArgumentParser(description="evaluate on the model")
-    parser.add_argument('--config', '-c', required=False, dest='config_path', default='config/model_config.yaml')
+    parser.add_argument('--config', '-c', required=False, dest='config_path', default='config/global_config.yaml')
     parser.add_argument('--output', '-o', required=False, dest='out_path')
     args = parser.parse_args()
 

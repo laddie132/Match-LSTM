@@ -10,7 +10,7 @@ import nltk
 import numpy as np
 import matplotlib.pyplot as plt
 from dataset.h5_dataset import Dataset
-from models.match_model import MatchLSTMModel
+from models import *
 from utils.load_config import init_logging, read_config
 from utils.functions import to_long_tensor, count_parameters, draw_heatmap_sea
 
@@ -24,18 +24,30 @@ def main():
     global_config = read_config('config/CMRC.yaml')
 
     # set random seed
-    seed = global_config['model']['global']['random_seed']
+    seed = global_config['global']['random_seed']
     torch.manual_seed(seed)
 
-    torch.no_grad()  # make sure all tensors below have require_grad=False
+    torch.set_grad_enabled(False)  # make sure all tensors below have require_grad=False
 
     logger.info('reading squad dataset...')
     dataset = Dataset(global_config)
 
     logger.info('constructing model...')
-    model = MatchLSTMModel(global_config)
-    model.eval()  # let training = False, make sure right dropout
+    model_choose = global_config['global']['model']
+    dataset_h5_path = global_config['data']['dataset_h5']
+    if model_choose == 'base':
+        model = BaseModel(dataset_h5_path,
+                          model_config=read_config('config/base_model.yaml'))
+    elif model_choose == 'match-lstm':
+        model = MatchLSTM(dataset_h5_path)
+    elif model_choose == 'match-lstm+':
+        model = MatchLSTMPlus(dataset_h5_path)
+    elif model_choose == 'r-net':
+        model = RNet(dataset_h5_path)
+    else:
+        raise ValueError('model "%s" in config file not recoginized' % model_choose)
 
+    model.eval()  # let training = False, make sure right dropout
     logging.info('model parameters count: %d' % count_parameters(model))
 
     # load model weight
@@ -97,11 +109,11 @@ def main():
     s = 0
     e = 48
 
-    x_left = vis_param['match']['left']['alpha'][0, :, s:e].cpu().data.numpy()
-    x_right = vis_param['match']['right']['alpha'][0, :, s:e].cpu().data.numpy()
+    x_left = vis_param['match']['left']['alpha'][0, :, s:e].data.numpy()
+    x_right = vis_param['match']['right']['alpha'][0, :, s:e].data.numpy()
 
-    x_left_gated = vis_param['match']['left']['gated'][0, :, s:e].cpu().data.numpy()
-    x_right_gated = vis_param['match']['right']['gated'][0, :, s:e].cpu().data.numpy()
+    x_left_gated = vis_param['match']['left']['gated'][0, :, s:e].data.numpy()
+    x_right_gated = vis_param['match']['right']['gated'][0, :, s:e].data.numpy()
 
     draw_heatmap_sea(x_left,
                      xlabels=context_token[s:e],
@@ -116,9 +128,10 @@ def main():
                      save_path='cmrc_data/test-right.png',
                      bottom=0.45)
 
-    if global_config['model']['interaction']['enable_self_match']:
-        x_self_left = vis_param['self']['left']['alpha'][0, s:e, s:e].cpu().data.numpy()
-        x_self_right = vis_param['self']['right']['alpha'][0, s:e, s:e].cpu().data.numpy()
+    enable_self_match = False
+    if enable_self_match:
+        x_self_left = vis_param['self']['left']['alpha'][0, s:e, s:e].data.numpy()
+        x_self_right = vis_param['self']['right']['alpha'][0, s:e, s:e].data.numpy()
 
         draw_heatmap_sea(x_self_left,
                          xlabels=context_token[s:e],

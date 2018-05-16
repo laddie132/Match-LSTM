@@ -1,4 +1,4 @@
-# MRC-PyTorch
+# Match-LSTM
 
 Here we implement the MatchLSTM (Wang and Jiang, 2016) model and R-Net(MSRA, 2017) model on SQuAD (Rajpurkar et al., 2016).
 
@@ -43,24 +43,25 @@ R-NET(paper)|72.3|80.6
 
 `python run.py [preprocess/train/test] [-c config_file] [-o ans_path]`
 
+- -c config_file: Defined dataset, model, train methods and so on. Default: `config/global_config.yaml`
+- -o ans_path: *see in test step*
+
+> there several models you can choose in `config/global_config.yaml`, like 'match-lstm', 'match-lstm+' and 'r-net'. view and modify. 
+
 ### Preprocess
 
-1. Put the GloVe embeddings file(*you have downloaded before*) to the `data/` directory
-2. Run `python run.py preprocess` to generate hdf5 file of SQuAD dataset
+1. Put the GloVe embeddings file to the `data/` directory
+2. Put the SQuAD dataset to the `data/` directory
+3. Run `python run.py preprocess` to generate hdf5 file of SQuAD dataset
 
 ### Train
 
-Run `python run.py train [-c config_file]`.
-
-- -c config_file: Defined model hyperparameters. Default: `config/model_config.yaml`
-
-> Note that there are some config templates you can choose in directory `config/`, such as `config/match-lstm.yaml`, `config/r-net.yaml`, and so on. You can also try to modify `config/model_config.yaml` for default arguments.
+Run `python run.py train`.
 
 ### Test
 
-Run `python run.py test [-c config_file] [-o ans_file]`.
+Run `python run.py test [-o ans_file]`.
 
-- -c config_file: Defined model hyperparameters. Default: `config/model_config.yaml`
 - -o ans_file: Output the answer of question and context with a unique id to ans_file. 
 
 > Note that we use `data/model-weight.pt` as our model weights by default. You can modify the config_file to set model weights file.
@@ -76,7 +77,7 @@ Run `python helper_run/evaluate-v1.1.py [dataset_file] [prediction_file]`
 
 Run `python helper_run/analysis_[*].py`
 
-Here we provide some scipt to analysis your model output, such as `analysis_log.py`, `analysis_ans.py`, `analysis_dataset.py` and so on. Explore on your own. 
+Here we provide some scipt to analysis your model output, such as `analysis_log.py`, `analysis_ans.py`, `analysis_dataset.py` and so on. view and explore. 
 
 ## Reference
 

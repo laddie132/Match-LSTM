@@ -1,0 +1,44 @@
+# only work on 'base' model
+global:
+  dropout_p: 0.4  # dropout between other layers
+  emb_dropout_p: 0.1  # dropout between word/char embeddings and encoder
+  hidden_size: 150  # one-direction
+  hidden_mode: GRU # LSTM or GRU
+  layer_norm: False
+
+encoder:
+  # char-level
+  char_layers: 1
+  char_embedding_size: 64
+  char_cnn_filter_size: [2, 3, 4, 5]
+  char_cnn_filter_num: [75, 75, 75, 75]
+  char_encode_type: 'LSTM' # 'LSTM' or 'CNN'
+  char_trainable: True
+  enable_char: True
+
+  # word-level
+  word_layers: 1
+  word_embedding_size: 300
+
+  # other
+  bidirection: True
+  mix_encode: False # when 'false' means separated char-encoding, else means char encoding same as methods in r-net
+
+interaction:
+  question_match: False
+
+  gated_attention: True
+  match_lstm_bidirection: True
+
+  enable_self_match: False
+  self_match_bidirection: True
+
+  birnn_after_self: True
+  self_gated: False
+
+output:
+  num_hops: 1 # multi-hop support
+  scales: [1] # multi-scale support, for example: [1, 2, 4]. it should be [1] add some even numbers
+  init_ptr_hidden: linear # pooling, linear, None
+  ptr_bidirection: False
+  answer_search: True

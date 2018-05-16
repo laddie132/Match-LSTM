@@ -9,7 +9,7 @@ import logging
 import argparse
 import torch.optim as optim
 from dataset.h5_dataset import Dataset
-from models.match_model import MatchLSTMModel
+from models import *
 from models.loss import MyNLLLoss, RLLoss
 from utils.load_config import init_logging, read_config
 from utils.eval import eval_on_model
@@ -24,7 +24,7 @@ def train(config_path):
     global_config = read_config(config_path)
 
     # set random seed
-    seed = global_config['model']['global']['random_seed']
+    seed = global_config['global']['random_seed']
     torch.manual_seed(seed)
 
     enable_cuda = global_config['train']['enable_cuda']
@@ -38,7 +38,21 @@ def train(config_path):
     dataset = Dataset(global_config)
 
     logger.info('constructing model...')
-    model = MatchLSTMModel(global_config).to(device)
+    model_choose = global_config['global']['model']
+    dataset_h5_path = global_config['data']['dataset_h5']
+    if model_choose == 'base':
+        model = BaseModel(dataset_h5_path,
+                          model_config=read_config('config/base_model.yaml'))
+    elif model_choose == 'match-lstm':
+        model = MatchLSTM(dataset_h5_path)
+    elif model_choose == 'match-lstm+':
+        model = MatchLSTMPlus(dataset_h5_path)
+    elif model_choose == 'r-net':
+        model = RNet(dataset_h5_path)
+    else:
+        raise ValueError('model "%s" in config file not recoginized' % model_choose)
+
+    model = model.to(device)
     criterion = MyNLLLoss()
 
     # optimizer
@@ -192,7 +206,7 @@ if __name__ == '__main__':
     init_logging()
 
     parser = argparse.ArgumentParser(description="train on the model")
-    parser.add_argument('--config', '-c', required=False, dest='config_path', default='config/model_config.yaml')
+    parser.add_argument('--config', '-c', required=False, dest='config_path', default='config/global_config.yaml')
     args = parser.parse_args()
 
     train(args.config_path)
