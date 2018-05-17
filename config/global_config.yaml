@@ -12,6 +12,7 @@ data:
 
 global:
   random_seed: 123
+  num_data_workers: 5   # for data loader
   use_char_model: ['match-lstm+', 'r-net', 'm-reader']
   model: match-lstm+  # 'match-lstm', 'match-lstm+', 'r-net', 'm-reader' or 'base'
                       # Note that 'base' model is customized by base_model.yaml

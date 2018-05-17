@@ -8,6 +8,7 @@ import h5py
 import math
 import torch
 import torch.utils.data
+from torch.utils.data.sampler import Sampler
 import logging
 import pandas as pd
 from dataset.preprocess_data import PreprocessData
@@ -54,23 +55,23 @@ class SquadDataset:
         self.__meta_data['char2id'] = dict(zip(self.__meta_data['id2char'],
                                                range(len(self.__meta_data['id2char']))))
 
-    def get_dataloader_train(self, batch_size):
+    def get_dataloader_train(self, batch_size, num_workers):
         """
         a train data dataloader
         :param batch_size:
         :return:
         """
-        return self.get_dataloader(batch_size, 'train')
+        return self.get_dataloader(batch_size, 'train', num_workers, shuffle=True)
 
-    def get_dataloader_dev(self, batch_size):
+    def get_dataloader_dev(self, batch_size, num_workers):
         """
         a dev data dataloader
         :param batch_size:
         :return:
         """
-        return self.get_dataloader(batch_size, 'dev')
+        return self.get_dataloader(batch_size, 'dev', num_workers, shuffle=False)
 
-    def get_dataloader(self, batch_size, type):
+    def get_dataloader(self, batch_size, type, num_workers, shuffle):
         """
         get dataloader on train or dev dataset
         :param batch_size:
@@ -81,9 +82,11 @@ class SquadDataset:
         dataset = CQA_Dataset(to_long_tensor(data['context']),
                               to_long_tensor(data['question']),
                               to_long_tensor(data['answer_range']))
+        sampler = SortedBatchSampler(dataset.get_lengths(), batch_size, shuffle=shuffle)
         dataloader = torch.utils.data.DataLoader(dataset,
                                                  batch_size=batch_size,
-                                                 shuffle=True)
+                                                 sampler=sampler,
+                                                 num_workers=num_workers)
         return dataloader
 
     def get_batch_train(self, batch_size):
@@ -104,7 +107,7 @@ class SquadDataset:
 
     def get_batch_data(self, batch_size, type):
         """
-        get batch data
+        get batch data, can also use BatchSampler
         :param batch_size:
         :return: iterator
         """
@@ -115,16 +118,9 @@ class SquadDataset:
             j = min(i + batch_size, data_size)
             bat = [data['context'][i:j], data['question'][i:j], data['answer_range'][i:j]]
             bat_tensor = [to_long_tensor(x) for x in bat]
-            bat_tensor_new = [del_zeros_right(x) for x in bat_tensor]
-
-            # bat_context_char = self.batch_word_to_char(bat_tensor_new[0])
-            # bat_question_char = self.batch_word_to_char(bat_tensor_new[1])
-
-            # bat_tensor_new.append(bat_context_char)
-            # bat_tensor_new.append(bat_question_char)
 
             i = j
-            yield bat_tensor_new
+            yield bat_tensor
 
     def get_all_samples_id_train(self):
         return self.get_all_samples_id('train')
@@ -188,6 +184,8 @@ class SquadDataset:
         :param enable_cuda:
         :return:
         """
+        batch_data = [del_zeros_right(x) for x in batch_data]
+
         if not enable_char:
             bat_context, bat_question, bat_answer_range = [x.to(device) for x in batch_data]
             bat_context_char = None
@@ -319,6 +317,10 @@ class SquadDataset:
 class CQA_Dataset(torch.utils.data.Dataset):
     """
     torch dataset type, used for dataloader
+    Args:
+        - context: (batch, ct_len)
+        - question: (batch, qt_len)
+        - answer_range: (batch, ans_len)
     """
 
     def __init__(self, context, question, answer_range):
@@ -331,3 +333,40 @@ class CQA_Dataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return self.answer_range.shape[0]
+
+    def get_lengths(self):
+        ct_mask = compute_mask(self.context, padding_idx=PreprocessData.padding_idx)
+        ct_lengths = ct_mask.eq(1).long().sum(1)
+
+        qt_mask = compute_mask(self.question, padding_idx=PreprocessData.padding_idx)
+        qt_lengths = qt_mask.eq(1).long().sum(1)
+
+        lengths = torch.stack([ct_lengths, qt_lengths], dim=-1).numpy()
+
+        return lengths
+
+
+class SortedBatchSampler(Sampler):
+    """
+    forked from https://github.com/HKUST-KnowComp/MnemonicReader
+    """
+
+    def __init__(self, lengths, batch_size, shuffle=True):
+        self.lengths = lengths    # (batch, )
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+
+    def __iter__(self):
+        lengths = np.array(
+            [(-l[0], -l[1], np.random.random()) for l in self.lengths],
+            dtype=[('l1', np.int_), ('l2', np.int_), ('rand', np.float_)]
+        )
+        indices = np.argsort(lengths, order=('l1', 'l2', 'rand'))
+        batches = [indices[i:i + self.batch_size]
+                   for i in range(0, len(indices), self.batch_size)]
+        if self.shuffle:
+            np.random.shuffle(batches)
+        return iter([i for batch in batches for i in batch])
+
+    def __len__(self):
+        return len(self.lengths)

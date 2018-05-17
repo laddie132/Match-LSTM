@@ -77,8 +77,10 @@ def test(config_path, out_path):
             model_choose == 'base' and model_config['encoder']['enable_char']):
         enable_char = True
     batch_size = global_config['test']['batch_size']
-    # batch_dev_data = dataset.get_dataloader_dev(batch_size)
-    batch_dev_data = list(dataset.get_batch_dev(batch_size))
+
+    num_workers = global_config['global']['num_data_workers']
+    batch_dev_data = dataset.get_dataloader_dev(batch_size, num_workers)
+    # batch_dev_data = list(dataset.get_batch_dev(batch_size))
 
     # to just evaluate score or write answer to file
     if out_path is None:

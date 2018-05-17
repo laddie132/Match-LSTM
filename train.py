@@ -83,17 +83,18 @@ def train(config_path):
         if enable_cuda:
             weight = torch.load(weight_path, map_location=lambda storage, loc: storage.cuda())
         # weight = pop_dict_keys(weight, ['pointer', 'init_ptr_hidden'])  # partial initial weight
-        model.load_state_dict(weight, strict=False)
+        # model.load_state_dict(weight, strict=False)
 
     # training arguments
     logger.info('start training...')
     train_batch_size = global_config['train']['batch_size']
     valid_batch_size = global_config['train']['valid_batch_size']
 
-    # batch_train_data = dataset.get_dataloader_train(train_batch_size)
-    # batch_dev_data = dataset.get_dataloader_dev(valid_batch_size)
-    batch_train_data = list(dataset.get_batch_train(train_batch_size))
-    batch_dev_data = list(dataset.get_batch_dev(valid_batch_size))
+    num_workers = global_config['global']['num_data_workers']
+    batch_train_data = dataset.get_dataloader_train(train_batch_size, num_workers)
+    batch_dev_data = dataset.get_dataloader_dev(valid_batch_size, num_workers)
+    # batch_train_data = list(dataset.get_batch_train(train_batch_size))
+    # batch_dev_data = list(dataset.get_batch_dev(valid_batch_size))
 
     clip_grad_max = global_config['train']['clip_grad_norm']
     enable_char = False
