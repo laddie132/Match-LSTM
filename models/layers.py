@@ -42,7 +42,7 @@ class GloveEmbedding(torch.nn.Module):
         return int(word_dict_size), int(embedding_size), torch.from_numpy(id2vec)
 
     def forward(self, x):
-        mask = compute_mask(x, PreprocessData.padding_idx)
+        mask = compute_mask(x)
 
         tmp_emb = self.embedding_layer.forward(x)
         out_emb = tmp_emb.transpose(0, 1)

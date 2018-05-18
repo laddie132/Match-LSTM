@@ -38,8 +38,9 @@ class MReader(torch.nn.Module):
         emb_dropout_p = 0.2
         enable_layer_norm = False
 
-        word_embedding_size = 300
+        word_embedding_size = 300   # manual set
         char_embedding_size = 50
+        add_feature_size = 73   # manual set
 
         self.num_align_hops = 2
         self.num_ptr_hops = 2
@@ -58,7 +59,7 @@ class MReader(torch.nn.Module):
                                         bidirectional=True,
                                         dropout_p=emb_dropout_p)
 
-        encoder_in_size = word_embedding_size + char_encoder_hidden * 2
+        encoder_in_size = word_embedding_size + char_encoder_hidden * 2 + add_feature_size
         self.encoder = MyRNNBase(mode=hidden_mode,
                                  input_size=encoder_in_size,
                                  hidden_size=hidden_size,
@@ -88,7 +89,12 @@ class MReader(torch.nn.Module):
                                                       dropout_p=dropout_p) for _ in range(self.num_ptr_hops)])
 
     def forward(self, context, question, context_char=None, question_char=None, context_f=None, question_f=None):
-        assert context_char is not None and question_char is not None
+        assert context_char is not None and question_char is not None and context_f is not None \
+               and question_f is not None
+
+        # (seq_len, batch, additional_feature_size)
+        context_f = context_f.transpose(0, 1)
+        question_f = question_f.transpose(0, 1)
 
         # word-level embedding: (seq_len, batch, word_embedding_size)
         context_vec, context_mask = self.embedding.forward(context)
@@ -102,8 +108,8 @@ class MReader(torch.nn.Module):
         question_vec_char = self.char_encoder.forward(question_emb_char, question_char_mask, question_mask)
 
         # mix embedding: (seq_len, batch, embedding_size)
-        context_vec = torch.cat((context_vec, context_vec_char), dim=-1)
-        question_vec = torch.cat((question_vec, question_vec_char), dim=-1)
+        context_vec = torch.cat((context_vec, context_vec_char, context_f), dim=-1)
+        question_vec = torch.cat((question_vec, question_vec_char, question_f), dim=-1)
 
         # encode: (seq_len, batch, hidden_size*2)
         context_encode, _ = self.encoder.forward(context_vec, context_mask)

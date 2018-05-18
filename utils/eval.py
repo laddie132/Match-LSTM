@@ -29,7 +29,7 @@ def eval_on_model(model, criterion, batch_data, epoch, device):
     for bnum, batch in enumerate(batch_data):
 
         # batch data
-        batch = [x.to(device) for x in batch]
+        batch = [x.to(device) if x is not None else x for x in batch]
         bat_context = batch[0]
         bat_answer_range = batch[-1]
 

@@ -83,7 +83,7 @@ def train(config_path):
         if enable_cuda:
             weight = torch.load(weight_path, map_location=lambda storage, loc: storage.cuda())
         # weight = pop_dict_keys(weight, ['pointer', 'init_ptr_hidden'])  # partial initial weight
-        # model.load_state_dict(weight, strict=False)
+        model.load_state_dict(weight, strict=False)
 
     # training arguments
     logger.info('start training...')
@@ -153,7 +153,7 @@ def train_on_model(model, criterion, optimizer, batch_data, epoch, clip_grad_max
         optimizer.zero_grad()
 
         # batch data
-        batch = [x.to(device) for x in batch]
+        batch = [x.to(device) if x is not None else x for x in batch]
         bat_answer_range = batch[-1]
 
         # forward

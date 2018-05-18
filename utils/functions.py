@@ -296,7 +296,7 @@ def del_zeros_right(tensor):
         last_col = i
 
     tensor = tensor[:, :last_col]
-    return tensor
+    return tensor, last_col
 
 
 def masked_flip(vin, mask, flip_dim=0):

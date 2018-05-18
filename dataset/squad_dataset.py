@@ -51,14 +51,15 @@ class SquadDataset:
                     cur_data = f_data[name][sub_name]
                     self._data[name][sub_name] = {}
 
-                    for subsub_name in ['token', 'pos', 'ent', 'em', 'em_lemma']:
-                        if subsub_name in cur_data.keys():
-                            self._data[name][sub_name][subsub_name] = np.array(cur_data[subsub_name])
+                    # 'token', 'pos', 'ent', 'em', 'em_lemma'
+                    for subsub_name in cur_data.keys():
+                        self._data[name][sub_name][subsub_name] = np.array(cur_data[subsub_name])
 
             for key, value in f.attrs.items():
                 self._attr[key] = value
 
-            for key in ['id2word', 'id2char', 'id2pos', 'id2ent']:
+            # 'id2word', 'id2char', 'id2pos', 'id2ent'
+            for key in f['meta_data'].keys():
                 self._meta_data[key] = np.array(f['meta_data'][key])
         self._meta_data['char2id'] = dict(zip(self._meta_data['id2char'],
                                               range(len(self._meta_data['id2char']))))
@@ -123,24 +124,16 @@ class SquadDataset:
             answer_range.append(ele[4])
 
         # word idx
-        bat_context = torch.nn.utils.rnn.pad_sequence(context,
-                                                      batch_first=True,
-                                                      padding_value=PreprocessData.padding_idx)
-        bat_question = torch.nn.utils.rnn.pad_sequence(question,
-                                                       batch_first=True,
-                                                       padding_value=PreprocessData.padding_idx)
-        bat_answer = del_zeros_right(torch.stack(answer_range, dim=0))
+        bat_context, max_ct_len = del_zeros_right(torch.stack(context, dim=0))
+        bat_question, max_qt_len = del_zeros_right(torch.stack(question, dim=0))
+        bat_answer, _ = del_zeros_right(torch.stack(answer_range, dim=0))
 
         # additional features
         bat_context_f = None
         bat_question_f = None
         if context_f[0] is not None:
-            bat_context_f = torch.nn.utils.rnn.pad_sequence(context_f,
-                                                            batch_first=True,
-                                                            padding_value=PreprocessData.padding_idx)
-            bat_question_f = torch.nn.utils.rnn.pad_sequence(question_f,
-                                                             batch_first=True,
-                                                             padding_value=PreprocessData.padding_idx)
+            bat_context_f = torch.stack(context_f, dim=0)[:, 0:max_ct_len, :]
+            bat_question_f = torch.stack(question_f, dim=0)[:, 0:max_qt_len, :]
 
         # generate char idx
         bat_context_char = None
@@ -251,7 +244,7 @@ class SquadDataset:
         .. warning::
             This method is now deprecated in favor of collect function in DataLoader
         """
-        batch_data = [del_zeros_right(x) for x in batch_data]
+        batch_data = [del_zeros_right(x)[0] for x in batch_data]
 
         if not enable_char:
             bat_context, bat_question, bat_answer_range = [x.to(device) for x in batch_data]
@@ -400,8 +393,8 @@ class CQA_Dataset(torch.utils.data.Dataset):
         self.lengths = self.get_lengths()
 
     def __getitem__(self, index):
-        cur_context = to_long_tensor(self.context['token'][index][0:self.lengths[0][index]])
-        cur_question = to_long_tensor(self.question['token'][index][0:self.lengths[1][index]])
+        cur_context = to_long_tensor(self.context['token'][index])
+        cur_question = to_long_tensor(self.question['token'][index])
         cur_answer = to_long_tensor(self.answer_range[index])
 
         cur_context_f, cur_question_f = self.addition_feature(index)
@@ -427,24 +420,26 @@ class CQA_Dataset(torch.utils.data.Dataset):
 
         for k in range(len(data)):
             features = {}
-            tmp_seq_len = self.lengths[k][index].item()
+            tmp_seq_len = data[k]['token'].shape[1]
 
             if self.config['use_pos']:
                 features['pos'] = torch.zeros((tmp_seq_len, len(self.feature_dict['id2pos'])), dtype=torch.float)
                 for i, ele in enumerate(data[k]['pos'][index]):
-                    if ele != PreprocessData.padding_idx:
-                        features['pos'][i][ele] = 1
+                    if ele == PreprocessData.padding_idx:
+                        break
+                    features['pos'][i, ele] = 1
 
             if self.config['use_ent']:
                 features['ent'] = torch.zeros((tmp_seq_len, len(self.feature_dict['id2ent'])), dtype=torch.float)
                 for i, ele in enumerate(data[k]['ent'][index]):
-                    if ele != PreprocessData.padding_idx:
-                        features['ent'][i][ele] = 1
+                    if ele == PreprocessData.padding_idx:
+                        break
+                    features['ent'][i, ele] = 1
 
             if self.config['use_em']:
-                features['em'] = to_float_tensor(data[k]['em'][index][0:tmp_seq_len]).unsqueeze(-1)
+                features['em'] = to_float_tensor(data[k]['em'][index]).unsqueeze(-1)
             if self.config['use_em_lemma']:
-                features['em_lemma'] = to_float_tensor(data[k]['em_lemma'][index][0:tmp_seq_len]).unsqueeze(-1)
+                features['em_lemma'] = to_float_tensor(data[k]['em_lemma'][index]).unsqueeze(-1)
 
             if len(features) > 0:
                 add_features[k] = torch.cat(list(features.values()), dim=-1)
