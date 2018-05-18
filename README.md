@@ -34,7 +34,7 @@ Match-LSTM+ with pooling and bp|66.9|76.1
 Match-LSTM(paper)|64.1|73.9
 R-NET-45(our version)|64.19|73.62
 R-NET(paper)|72.3|80.6
-M-Reader(our version)||
+M-Reader(our version)|70.4|79.6
 M-Reader+RL(paper)|72.1|81.6
 
 > - 'bp' refers to bidirectional ptr-net
@@ -45,7 +45,9 @@ M-Reader+RL(paper)|72.1|81.6
 
 ## Usage
 
-`python run.py [preprocess/train/test] [-c config_file] [-o ans_path]`
+```bash
+python run.py [preprocess/train/test] [-c config_file] [-o ans_path]
+```
 
 - -c config_file: Defined dataset, model, train methods and so on. Default: `config/global_config.yaml`
 - -o ans_path: *see in test step*
@@ -62,11 +64,15 @@ M-Reader+RL(paper)|72.1|81.6
 
 ### Train
 
-Run `python run.py train`
+```bash
+python run.py train
+```
 
 ### Test
 
-Run `python run.py test [-o ans_file]`
+```bash
+python run.py test [-o ans_file]
+```
 
 - -o ans_file: Output the answer of question and context with a unique id to ans_file. 
 
@@ -74,14 +80,18 @@ Run `python run.py test [-o ans_file]`
 
 ### Evaluate
 
-Run `python helper_run/evaluate-v1.1.py [dataset_file] [prediction_file]`
+```bash
+python helper_run/evaluate-v1.1.py [dataset_file] [prediction_file]
+```
 
 - dataset_file: ground truth of dataset. example: `data/SQuAD/dev-v1.1.json`
 - prediction_file: your model predict on dataset. you can use the `ans_file` from test step.
 
 ### Analysis
 
-Run `python helper_run/analysis_[*].py`
+```bash
+python helper_run/analysis_[*].py
+```
 
 Here we provide some scipt to analysis your model output, such as `analysis_log.py`, `analysis_ans.py`, `analysis_dataset.py` and so on. view and explore. 
 

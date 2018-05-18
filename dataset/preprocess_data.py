@@ -13,7 +13,7 @@ import logging
 import numpy as np
 from functools import reduce
 from utils.functions import pad_sequences
-from .doc_text import DocText
+from .doc_text import DocText, Space
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +129,7 @@ class PreprocessData:
             if self._use_char:
                 self._update_to_char(cur_context)
 
-            cur_context_ids = self._sentence_to_id(cur_context_doc)
+            cur_context_ids = self._doctext_to_id(cur_context_doc)
 
             # every question-answer
             for qa in cur_qas:
@@ -139,7 +139,7 @@ class PreprocessData:
                     self._update_to_char(cur_question)
 
                 cur_question_doc = DocText(self._nlp, cur_question, self.preprocess_config)
-                cur_question_ids = self._sentence_to_id(cur_question_doc)
+                cur_question_ids = self._doctext_to_id(cur_question_doc)
 
                 # get em feature
                 if self._use_em or self._use_em_lemma:
@@ -173,7 +173,7 @@ class PreprocessData:
                         continue
 
                     gen_ans = ''.join(cur_context_doc.token[pos_s:(pos_e + 1)]).replace(' ', '')
-                    true_ans = self.remove_white_space(cur_ans['text'])
+                    true_ans = Space.remove_white_space(cur_ans['text'])
                     if true_ans not in gen_ans:
                         logger.error("Answer position wrong." +
                                      "\nContext:" + cur_context +
@@ -193,12 +193,9 @@ class PreprocessData:
                 'answer_range': answers_range_wid,
                 'samples_id': samples_id}
 
-    def remove_white_space(self, s):
-        return re.sub('[ \t\n\r\u00A0\u1680​\u180e\u2000-\u2009\u200a​​\u202f\u205f​\u3000\u2028\u2029]', '', s)
-
     def find_ans_start_end(self, context_text, context_doc, answer_text, answer_start):
         # find answer start position
-        pre_ans_len = len(self.remove_white_space(context_text[:answer_start]))
+        pre_ans_len = len(Space.remove_white_space(context_text[:answer_start]))
         tmp_len = 0
         pos_s = 0
 
@@ -212,7 +209,7 @@ class PreprocessData:
         # find answer end position
         pos_e = 0
         tmp_str = ""
-        tmp_ans = answer_text.replace(' ', '').replace('\u202f', '')
+        tmp_ans = Space.remove_white_space(answer_text)
         if tmp_ans[0] == '.':  # squad dataset have some mistakes
             tmp_ans = tmp_ans[1:]
 
@@ -226,14 +223,14 @@ class PreprocessData:
 
         return pos_s, pos_e
 
-    def _sentence_to_id(self, doc_text):
+    def _doctext_to_id(self, doc_text):
         """
         transform a sentence to word index id representation
         :param sentence: DocText
         :return: word ids
         """
 
-        sentence = {'token': [], 'pos': [], 'ent': []}
+        sentence = {'token': [], 'pos': [], 'ent': [], 'right_space': doc_text.right_space}
 
         for i in range(len(doc_text)):
 
@@ -370,6 +367,8 @@ class PreprocessData:
         self._attr['dev_size'] = len(dev_cache_nopad['answer_range'])
         self._attr['word_dict_size'] = len(self._word2id)
         self._attr['char_dict_size'] = len(self._char2id)
+        self._attr['pos_dict_size'] = len(self._pos2id)
+        self._attr['ent_dict_size'] = len(self._ent2id)
         self._attr['embedding_size'] = self._embedding_size
         self._attr['oov_word_num'] = self._oov_num
 
@@ -399,10 +398,10 @@ class PreprocessData:
 def dict2array(data_doc):
     """
     transform dict to numpy array
-    :param data_doc: [{'token': [], 'pos': [], 'ent': [], 'em': [], 'em_lemma': []]
+    :param data_doc: [{'token': [], 'pos': [], 'ent': [], 'em': [], 'em_lemma': [], 'right_space': []]
     :return:
     """
-    data = {'token': [], 'pos': [], 'ent': [], 'em': [], 'em_lemma': []}
+    data = {'token': [], 'pos': [], 'ent': [], 'em': [], 'em_lemma': [], 'right_space': []}
     max_len = 0
 
     for ele in data_doc:

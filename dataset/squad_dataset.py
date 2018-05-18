@@ -51,7 +51,7 @@ class SquadDataset:
                     cur_data = f_data[name][sub_name]
                     self._data[name][sub_name] = {}
 
-                    # 'token', 'pos', 'ent', 'em', 'em_lemma'
+                    # 'token', 'pos', 'ent', 'em', 'em_lemma', 'right_space'
                     for subsub_name in cur_data.keys():
                         self._data[name][sub_name][subsub_name] = np.array(cur_data[subsub_name])
 
@@ -198,6 +198,16 @@ class SquadDataset:
         data = self._data[type]
         return data['samples_id']
 
+    def get_all_ct_right_space_train(self):
+        return self.get_all_ct_right_space('train')
+
+    def get_all_ct_right_space_dev(self):
+        return self.get_all_ct_right_space('dev')
+
+    def get_all_ct_right_space(self, type):
+        data = self._data[type]
+        return data['context']['right_space']
+
     def get_train_batch_cnt(self, batch_size):
         """
         get count of train batches
@@ -313,7 +323,7 @@ class SquadDataset:
         :return:
         """
         data = self._data[type]
-        context = to_long_tensor(data['context'])
+        context = to_long_tensor(data['context']['token'])
         mask = compute_mask(context)
         lengths = mask.eq(1).long().sum(1).squeeze()
         length_pd = pd.DataFrame(data=lengths.numpy(), columns=['length'])

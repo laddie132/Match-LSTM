@@ -87,10 +87,12 @@ def test(config_path, out_path):
                                                      device=device)
         logger.info("test: ave_score_em=%.2f, ave_score_f1=%.2f, sum_loss=%.5f" % (score_em, score_f1, sum_loss))
     else:
+        context_right_space = dataset.get_all_ct_right_space_dev()
         predict_ans = predict_on_model(model=model,
                                        batch_data=batch_dev_data,
                                        device=device,
-                                       id_to_word_func=dataset.sentence_id2word)
+                                       id_to_word_func=dataset.sentence_id2word,
+                                       right_space=context_right_space)
         samples_id = dataset.get_all_samples_id_dev()
         ans_with_id = dict(zip(samples_id, predict_ans))
 
@@ -101,10 +103,11 @@ def test(config_path, out_path):
     logging.info('finished.')
 
 
-def predict_on_model(model, batch_data, device, id_to_word_func):
+def predict_on_model(model, batch_data, device, id_to_word_func, right_space):
     batch_cnt = len(batch_data)
     answer = []
 
+    cnt = 0
     for bnum, batch in enumerate(batch_data):
         batch = [x.to(device) if x is not None else x for x in batch]
         bat_context = batch[0]
@@ -116,9 +119,22 @@ def predict_on_model(model, batch_data, device, id_to_word_func):
 
         tmp_context_ans = zip(bat_context.cpu().data.numpy(),
                               tmp_ans_range.cpu().data.numpy())
-        tmp_ans = [' '.join(id_to_word_func(c[a[0]:(a[1] + 1)])) for c, a in tmp_context_ans]
-        answer += tmp_ans
 
+        # generate initial answer text
+        i = 0
+        for c, a in tmp_context_ans:
+            cur_no = cnt + i
+            tmp_ans = id_to_word_func(c[a[0]:(a[1] + 1)])
+            cur_space = right_space[cur_no][a[0]:(a[1]+1)]
+
+            cur_ans = ''
+            for j, word in enumerate(tmp_ans):
+                cur_ans += word
+                if cur_space[j]:
+                    cur_ans += ' '
+            answer.append(cur_ans.strip())
+            i += 1
+        cnt += i
         logging.info('batch=%d/%d' % (bnum, batch_cnt))
 
         # manual release memory, todo: really effect?

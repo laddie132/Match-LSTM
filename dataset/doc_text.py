@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 
+import re
 import logging
 import torch
 import numpy as np
+
 
 logger = logging.getLogger(__name__)
 
@@ -22,11 +24,18 @@ class DocText:
         self.em = []
         self.em_lemma = []
 
+        self.right_space = []   # record whether the right side of every token is a white space
+
         for t in doc:
             if t.is_space:
                 continue
 
             self.token.append(t.text)
+            end_idx = t.idx + len(t.text)
+            if end_idx < len(text) and text[end_idx] in Space.WHITE_SPACE:
+                self.right_space.append(1)
+            else:
+                self.right_space.append(0)
 
             if config['use_em_lemma']:
                 self.lemma.append(t.lemma_)
@@ -110,3 +119,16 @@ class DocText:
         rtn_sen_id = torch.tensor(sen_id, dtype=torch.long)
 
         return rtn_sen_id, rtn_features
+
+
+class Space:
+    WHITE_SPACE = ' \t\n\r\u00A0\u1680​\u180e\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a' \
+                  '​​\u202f\u205f​\u3000\u2028\u2029'
+
+    @staticmethod
+    def is_white_space(c):
+        return c in Space.WHITE_SPACE
+
+    @staticmethod
+    def remove_white_space(s):
+        return re.sub('['+Space.WHITE_SPACE+']', '', s)
