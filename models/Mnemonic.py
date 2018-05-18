@@ -87,7 +87,7 @@ class MReader(torch.nn.Module):
                                                       hidden_size=hidden_size,
                                                       dropout_p=dropout_p) for _ in range(self.num_ptr_hops)])
 
-    def forward(self, context, question, context_char=None, question_char=None):
+    def forward(self, context, question, context_char=None, question_char=None, context_f=None, question_f=None):
         assert context_char is not None and question_char is not None
 
         # word-level embedding: (seq_len, batch, word_embedding_size)

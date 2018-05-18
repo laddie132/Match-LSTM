@@ -97,7 +97,7 @@ class MatchLSTMPlus(torch.nn.Module):
                                            enable_layer_norm=enable_layer_norm)
         self.init_ptr_hidden = torch.nn.Linear(match_rnn_out_size, hidden_size)
 
-    def forward(self, context, question, context_char=None, question_char=None):
+    def forward(self, context, question, context_char=None, question_char=None, context_f=None, question_f=None):
         assert context_char is not None and question_char is not None
 
         # word-level embedding: (seq_len, batch, embedding_size)

@@ -8,7 +8,7 @@ import h5py
 import math
 import torch
 import torch.utils.data
-from torch.utils.data.sampler import Sampler
+from torch.utils.data.sampler import Sampler, SequentialSampler
 import logging
 import pandas as pd
 from dataset.preprocess_data import PreprocessData
@@ -23,17 +23,17 @@ class SquadDataset:
     """
 
     def __init__(self, global_config):
-        self.__data = {}
-        self.__attr = {}
-        self.__meta_data = {}
+        self._data = {}
+        self._attr = {}
+        self._meta_data = {}
         self.global_config = global_config
 
         # whether preprocessing squad dataset
         is_exist_dataset_h5 = os.path.exists(self.global_config['data']['dataset_h5'])
         assert is_exist_dataset_h5, 'not found dataset hdf5 file in %s' % self.global_config['data']['dataset_h5']
-        self.__load_hdf5()
+        self._load_hdf5()
 
-    def __load_hdf5(self):
+    def _load_hdf5(self):
         """
         load squad hdf5 file
         :return:
@@ -43,17 +43,25 @@ class SquadDataset:
             f_data = f['data']
 
             for name in ['train', 'dev']:
-                self.__data[name] = {}
-                for sub_name in ['context', 'question', 'answer_range', 'samples_id']:
-                    self.__data[name][sub_name] = np.array(f_data[name][sub_name])
+                self._data[name] = {}
+                for sub_name in ['answer_range', 'samples_id']:
+                    self._data[name][sub_name] = np.array(f_data[name][sub_name])
+
+                for sub_name in ['context', 'question']:
+                    cur_data = f_data[name][sub_name]
+                    self._data[name][sub_name] = {}
+
+                    for subsub_name in ['token', 'pos', 'ent', 'em', 'em_lemma']:
+                        if subsub_name in cur_data.keys():
+                            self._data[name][sub_name][subsub_name] = np.array(cur_data[subsub_name])
 
             for key, value in f.attrs.items():
-                self.__attr[key] = value
+                self._attr[key] = value
 
-            self.__meta_data['id2word'] = np.array(f['meta_data']['id2word'])
-            self.__meta_data['id2char'] = np.array(f['meta_data']['id2char'])
-        self.__meta_data['char2id'] = dict(zip(self.__meta_data['id2char'],
-                                               range(len(self.__meta_data['id2char']))))
+            for key in ['id2word', 'id2char', 'id2pos', 'id2ent']:
+                self._meta_data[key] = np.array(f['meta_data'][key])
+        self._meta_data['char2id'] = dict(zip(self._meta_data['id2char'],
+                                              range(len(self._meta_data['id2char']))))
 
     def get_dataloader_train(self, batch_size, num_workers):
         """
@@ -78,40 +86,100 @@ class SquadDataset:
         :param type: 'train' or 'dev'
         :return:
         """
-        data = self.__data[type]
-        dataset = CQA_Dataset(to_long_tensor(data['context']),
-                              to_long_tensor(data['question']),
-                              to_long_tensor(data['answer_range']))
-        sampler = SortedBatchSampler(dataset.get_lengths(), batch_size, shuffle=shuffle)
+        data = self._data[type]
+        dataset = CQA_Dataset(data['context'],
+                              data['question'],
+                              data['answer_range'],
+                              self._meta_data,
+                              self.global_config['preprocess'])
+        if shuffle:
+            sampler = SortedBatchSampler(dataset.get_lengths(), batch_size)
+        else:
+            sampler = SequentialSampler(dataset)
         dataloader = torch.utils.data.DataLoader(dataset,
                                                  batch_size=batch_size,
                                                  sampler=sampler,
+                                                 collate_fn=self.collect_fun,
                                                  num_workers=num_workers)
         return dataloader
+
+    def collect_fun(self, batch):
+        """
+        collect function for DataLoader, will generate char idx currently
+        :param batch:
+        :return:
+        """
+        context = []
+        context_f = []
+        question = []
+        question_f = []
+        answer_range = []
+
+        for ele in batch:
+            context.append(ele[0])
+            question.append(ele[1])
+            context_f.append(ele[2])
+            question_f.append(ele[3])
+            answer_range.append(ele[4])
+
+        # word idx
+        bat_context = torch.nn.utils.rnn.pad_sequence(context,
+                                                      batch_first=True,
+                                                      padding_value=PreprocessData.padding_idx)
+        bat_question = torch.nn.utils.rnn.pad_sequence(question,
+                                                       batch_first=True,
+                                                       padding_value=PreprocessData.padding_idx)
+        bat_answer = del_zeros_right(torch.stack(answer_range, dim=0))
+
+        # additional features
+        bat_context_f = None
+        bat_question_f = None
+        if context_f[0] is not None:
+            bat_context_f = torch.nn.utils.rnn.pad_sequence(context_f,
+                                                            batch_first=True,
+                                                            padding_value=PreprocessData.padding_idx)
+            bat_question_f = torch.nn.utils.rnn.pad_sequence(question_f,
+                                                             batch_first=True,
+                                                             padding_value=PreprocessData.padding_idx)
+
+        # generate char idx
+        bat_context_char = None
+        bat_question_char = None
+        if self.global_config['preprocess']['use_char']:
+            bat_context_char = self._batch_word_to_char(bat_context)
+            bat_question_char = self._batch_word_to_char(bat_question)
+
+        return bat_context, bat_question, bat_context_char, bat_question_char, bat_context_f, bat_question_f, bat_answer
 
     def get_batch_train(self, batch_size):
         """
         a train data batch
-        :param batch_size:
-        :return:
+
+        .. warning::
+            This method is now deprecated in favor of
+            :func:`get_dataloader_train`.
         """
         return self.get_batch_data(batch_size, 'train')
 
     def get_batch_dev(self, batch_size):
         """
         development data batch
-        :param batch_size:
-        :return: iterator
+
+        .. warning::
+            This method is now deprecated in favor of
+            :func:`get_dataloader_dev`.
         """
         return self.get_batch_data(batch_size, 'dev')
 
     def get_batch_data(self, batch_size, type):
         """
-        get batch data, can also use BatchSampler
-        :param batch_size:
-        :return: iterator
+        same with BatchSampler
+
+        .. warning::
+            This method is now deprecated in favor of
+            :func:`BatchSampler` and `get_dataloader`.
         """
-        data = self.__data[type]
+        data = self._data[type]
         data_size = len(data['context'])
         i = 0
         while i < data_size:
@@ -134,7 +202,7 @@ class SquadDataset:
         :param type:
         :return:
         """
-        data = self.__data[type]
+        data = self._data[type]
         return data['samples_id']
 
     def get_train_batch_cnt(self, batch_size):
@@ -143,7 +211,7 @@ class SquadDataset:
         :param batch_size: single batch size
         :return: count
         """
-        data_size = self.__attr['train_size']
+        data_size = self._attr['train_size']
         cnt_batch = math.ceil(data_size * 1.0 / batch_size)
 
         return cnt_batch
@@ -154,12 +222,12 @@ class SquadDataset:
         :param batch_size: single batch size
         :return: count
         """
-        data_size = self.__attr['dev_size']
+        data_size = self._attr['dev_size']
         cnt_batch = math.ceil(data_size * 1.0 / batch_size)
 
         return cnt_batch
 
-    def __batch_word_to_char(self, batch_wordid):
+    def _batch_word_to_char(self, batch_wordid):
         """
         transform batch with sentence of wordid to batch data with sentence of char id
         :param batch_wordid: (batch, seq_len), torch tensor
@@ -179,10 +247,9 @@ class SquadDataset:
     def gen_batch_with_char(self, batch_data, enable_char, device):
         """
         word batch to generate char barch, also move to device, used in train or valid steps
-        :param batch_data: [bat_context, bat_question, bat_answer_range]
-        :param enable_char:
-        :param enable_cuda:
-        :return:
+
+        .. warning::
+            This method is now deprecated in favor of collect function in DataLoader
         """
         batch_data = [del_zeros_right(x) for x in batch_data]
 
@@ -193,8 +260,8 @@ class SquadDataset:
 
         else:
             bat_context, bat_question, bat_answer_range = batch_data
-            bat_context_char = self.__batch_word_to_char(bat_context)
-            bat_question_char = self.__batch_word_to_char(bat_question)
+            bat_context_char = self._batch_word_to_char(bat_context)
+            bat_question_char = self._batch_word_to_char(bat_question)
 
             bat_context, bat_question, bat_context_char, bat_question_char, bat_answer_range = [x.to(device) for x in
                                                                                                 [bat_context,
@@ -211,7 +278,7 @@ class SquadDataset:
         :param s_id:
         :return:
         """
-        s = map(lambda id: self.__meta_data['id2word'][id], s_id)
+        s = map(lambda id: self._meta_data['id2word'][id], s_id)
         return list(s)
 
     def sentence_word2id(self, s):
@@ -221,18 +288,18 @@ class SquadDataset:
         :param s:
         :return:
         """
-        s_id = map(lambda word: np.where(self.__meta_data['id2word'] == word)[0][0], s)
+        s_id = map(lambda word: np.where(self._meta_data['id2word'] == word)[0][0], s)
         return np.array(list(s_id))
 
     def word_id2char(self, w_id):
-        w = map(lambda id: self.__meta_data['id2char'][id], w_id)
+        w = map(lambda id: self._meta_data['id2char'][id], w_id)
         return list(w)
 
     def word_char2id(self, w):
         if w == PreprocessData.padding:  # not actual word
             return np.ones(1, )  # make sure word length>0 and right encoding, here any none-zero value not effect
 
-        w_id = map(lambda ch: self.__meta_data['char2id'][ch], w)
+        w_id = map(lambda ch: self._meta_data['char2id'][ch], w)
         return np.array(list(w_id))
 
     def sentence_char2id(self, s, max_len=None):
@@ -252,7 +319,7 @@ class SquadDataset:
         :param steps: set to None means default steps
         :return:
         """
-        data = self.__data[type]
+        data = self._data[type]
         context = to_long_tensor(data['context'])
         mask = compute_mask(context)
         lengths = mask.eq(1).long().sum(1).squeeze()
@@ -289,14 +356,14 @@ class SquadDataset:
         :param max_len:
         :return:
         """
-        data = self.__data[type]
+        data = self._data[type]
         answer_range = data['answer_range']
         lengths = []
         for i in range(answer_range.shape[0]):
             tmp_lens = []
             for j in range(int(answer_range.shape[1] / 2)):
-                if answer_range[i, j*2] != -1:
-                    tmp_lens.append(answer_range[i, j*2+1] - answer_range[i, j*2] + 1)
+                if answer_range[i, j * 2] != -1:
+                    tmp_lens.append(answer_range[i, j * 2 + 1] - answer_range[i, j * 2] + 1)
             lengths.append(min(tmp_lens))
 
         length_pd = pd.DataFrame(data=lengths, columns=['length'])
@@ -309,41 +376,80 @@ class SquadDataset:
         if max_len is not None:
             sum_len = length_cnt[length_cnt['length'] >= max_len]['cnt'].sum()
             length_cnt = length_cnt[length_cnt['length'] < max_len]
-            length_cnt.loc[max_len] = [sum_len, '>=%d'%max_len]
+            length_cnt.loc[max_len] = [sum_len, '>=%d' % max_len]
 
         return length_cnt
 
 
 class CQA_Dataset(torch.utils.data.Dataset):
     """
-    torch dataset type, used for dataloader
+    squad like dataset, used for dataloader
     Args:
         - context: (batch, ct_len)
         - question: (batch, qt_len)
         - answer_range: (batch, ans_len)
     """
 
-    def __init__(self, context, question, answer_range):
+    def __init__(self, context, question, answer_range, feature_dict, config):
         self.context = context
         self.question = question
         self.answer_range = answer_range
+        self.feature_dict = feature_dict
+        self.config = config
+
+        self.lengths = self.get_lengths()
 
     def __getitem__(self, index):
-        return self.context[index], self.question[index], self.answer_range[index]
+        cur_context = to_long_tensor(self.context['token'][index][0:self.lengths[0][index]])
+        cur_question = to_long_tensor(self.question['token'][index][0:self.lengths[1][index]])
+        cur_answer = to_long_tensor(self.answer_range[index])
+
+        cur_context_f, cur_question_f = self.addition_feature(index)
+        return cur_context, cur_question, cur_context_f, cur_question_f, cur_answer
 
     def __len__(self):
         return self.answer_range.shape[0]
 
     def get_lengths(self):
-        ct_mask = compute_mask(self.context, padding_idx=PreprocessData.padding_idx)
-        ct_lengths = ct_mask.eq(1).long().sum(1)
+        ct_mask = self.context['token'].__ne__(PreprocessData.padding_idx)
+        ct_lengths = ct_mask.sum(1)
 
-        qt_mask = compute_mask(self.question, padding_idx=PreprocessData.padding_idx)
-        qt_lengths = qt_mask.eq(1).long().sum(1)
+        qt_mask = self.question['token'].__ne__(PreprocessData.padding_idx)
+        qt_lengths = qt_mask.sum(1)
 
-        lengths = torch.stack([ct_lengths, qt_lengths], dim=-1).numpy()
+        lengths = np.stack([ct_lengths, qt_lengths])
 
         return lengths
+
+    def addition_feature(self, index):
+        data = [self.context, self.question]
+        add_features = [None, None]
+
+        for k in range(len(data)):
+            features = {}
+            tmp_seq_len = self.lengths[k][index].item()
+
+            if self.config['use_pos']:
+                features['pos'] = torch.zeros((tmp_seq_len, len(self.feature_dict['id2pos'])), dtype=torch.float)
+                for i, ele in enumerate(data[k]['pos'][index]):
+                    if ele != PreprocessData.padding_idx:
+                        features['pos'][i][ele] = 1
+
+            if self.config['use_ent']:
+                features['ent'] = torch.zeros((tmp_seq_len, len(self.feature_dict['id2ent'])), dtype=torch.float)
+                for i, ele in enumerate(data[k]['ent'][index]):
+                    if ele != PreprocessData.padding_idx:
+                        features['ent'][i][ele] = 1
+
+            if self.config['use_em']:
+                features['em'] = to_float_tensor(data[k]['em'][index][0:tmp_seq_len]).unsqueeze(-1)
+            if self.config['use_em_lemma']:
+                features['em_lemma'] = to_float_tensor(data[k]['em_lemma'][index][0:tmp_seq_len]).unsqueeze(-1)
+
+            if len(features) > 0:
+                add_features[k] = torch.cat(list(features.values()), dim=-1)
+
+        return add_features
 
 
 class SortedBatchSampler(Sampler):
@@ -352,13 +458,13 @@ class SortedBatchSampler(Sampler):
     """
 
     def __init__(self, lengths, batch_size, shuffle=True):
-        self.lengths = lengths    # (batch, )
+        self.lengths = lengths  # (2, data_num)
         self.batch_size = batch_size
         self.shuffle = shuffle
 
     def __iter__(self):
         lengths = np.array(
-            [(-l[0], -l[1], np.random.random()) for l in self.lengths],
+            [(-l[0], -l[1], np.random.random()) for l in self.lengths.T],
             dtype=[('l1', np.int_), ('l2', np.int_), ('rand', np.float_)]
         )
         indices = np.argsort(lengths, order=('l1', 'l2', 'rand'))
@@ -369,4 +475,4 @@ class SortedBatchSampler(Sampler):
         return iter([i for batch in batches for i in batch])
 
     def __len__(self):
-        return len(self.lengths)
+        return self.lengths.shape[1]

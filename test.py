@@ -72,15 +72,10 @@ def test(config_path, out_path):
     # forward
     logger.info('forwarding...')
 
-    enable_char = False
-    if model_choose in global_config['global']['use_char_model'] or (
-            model_choose == 'base' and model_config['encoder']['enable_char']):
-        enable_char = True
     batch_size = global_config['test']['batch_size']
 
     num_workers = global_config['global']['num_data_workers']
     batch_dev_data = dataset.get_dataloader_dev(batch_size, num_workers)
-    # batch_dev_data = list(dataset.get_batch_dev(batch_size))
 
     # to just evaluate score or write answer to file
     if out_path is None:
@@ -89,16 +84,12 @@ def test(config_path, out_path):
                                                      criterion=criterion,
                                                      batch_data=batch_dev_data,
                                                      epoch=None,
-                                                     device=device,
-                                                     enable_char=enable_char,
-                                                     batch_char_func=dataset.gen_batch_with_char)
+                                                     device=device)
         logger.info("test: ave_score_em=%.2f, ave_score_f1=%.2f, sum_loss=%.5f" % (score_em, score_f1, sum_loss))
     else:
         predict_ans = predict_on_model(model=model,
                                        batch_data=batch_dev_data,
                                        device=device,
-                                       enable_char=enable_char,
-                                       batch_char_func=dataset.gen_batch_with_char,
                                        id_to_word_func=dataset.sentence_id2word)
         samples_id = dataset.get_all_samples_id_dev()
         ans_with_id = dict(zip(samples_id, predict_ans))
@@ -110,17 +101,20 @@ def test(config_path, out_path):
     logging.info('finished.')
 
 
-def predict_on_model(model, batch_data, device, enable_char, batch_char_func, id_to_word_func):
+def predict_on_model(model, batch_data, device, id_to_word_func):
     batch_cnt = len(batch_data)
     answer = []
 
     for bnum, batch in enumerate(batch_data):
 
-        # batch data
-        bat_context, bat_question, bat_context_char, bat_question_char, bat_answer_range = \
-            batch_char_func(batch, enable_char=enable_char, device=device)
+        batch = [x.to(device) for x in batch]
+        bat_context = batch[0]
+        bat_answer_range = batch[-1]
 
-        _, tmp_ans_range, _ = model.forward(bat_context, bat_question, bat_context_char, bat_question_char)
+        # forward
+        batch_input = batch[:len(batch) - 1]
+        _, tmp_ans_range, _ = model.forward(*batch_input)
+
         tmp_context_ans = zip(bat_context.cpu().data.numpy(),
                               tmp_ans_range.cpu().data.numpy())
         tmp_ans = [' '.join(id_to_word_func(c[a[0]:(a[1] + 1)])) for c, a in tmp_context_ans]
@@ -129,7 +123,7 @@ def predict_on_model(model, batch_data, device, enable_char, batch_char_func, id
         logging.info('batch=%d/%d' % (bnum, batch_cnt))
 
         # manual release memory, todo: really effect?
-        del bat_context, bat_question, bat_answer_range, bat_context_char, bat_question_char
+        del bat_context, bat_answer_range, batch, batch_input
         del tmp_ans_range
         # torch.cuda.empty_cache()
 

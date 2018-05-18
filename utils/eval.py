@@ -10,11 +10,9 @@ from dataset.preprocess_data import PreprocessData
 logger = logging.getLogger(__name__)
 
 
-def eval_on_model(model, criterion, batch_data, epoch, device, enable_char, batch_char_func):
+def eval_on_model(model, criterion, batch_data, epoch, device):
     """
     evaluate on a specific trained model
-    :param enable_char:
-    :param batch_char_func: transform word id to char id representation
     :param model: model with weight loaded
     :param criterion:
     :param batch_data: test data with batches
@@ -31,10 +29,13 @@ def eval_on_model(model, criterion, batch_data, epoch, device, enable_char, batc
     for bnum, batch in enumerate(batch_data):
 
         # batch data
-        bat_context, bat_question, bat_context_char, bat_question_char, bat_answer_range = \
-            batch_char_func(batch, enable_char=enable_char, device=device)
+        batch = [x.to(device) for x in batch]
+        bat_context = batch[0]
+        bat_answer_range = batch[-1]
 
-        tmp_ans_prop, tmp_ans_range, _ = model.forward(bat_context, bat_question, bat_context_char, bat_question_char)
+        # forward
+        batch_input = batch[:len(batch) - 1]
+        tmp_ans_prop, tmp_ans_range, _ = model.forward(*batch_input)
 
         tmp_size = bat_answer_range.shape[0]
         dev_data_size += tmp_size
@@ -58,7 +59,7 @@ def eval_on_model(model, criterion, batch_data, epoch, device, enable_char, batc
                         (epoch, bnum, batch_cnt, num_em * 1. / dev_data_size, score_f1 / dev_data_size, batch_loss))
 
         # manual release memory, todo: really effect?
-        del bat_context, bat_question, bat_answer_range, bat_context_char, bat_question_char
+        del bat_context, bat_answer_range, batch, batch_input
         del tmp_ans_prop, tmp_ans_range, batch_loss
         # torch.cuda.empty_cache()
 

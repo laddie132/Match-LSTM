@@ -75,7 +75,7 @@ class MatchLSTM(torch.nn.Module):
                                            dropout_p=dropout_p,
                                            enable_layer_norm=enable_layer_norm)
 
-    def forward(self, context, question, context_char=None, question_char=None):
+    def forward(self, context, question, context_char=None, question_char=None, context_f=None, question_f=None):
         """
         context_char and question_char not used
         """

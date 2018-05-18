@@ -6,7 +6,7 @@ __author__ = 'han'
 import os
 import torch
 import logging
-import nltk
+import spacy
 import numpy as np
 import matplotlib.pyplot as plt
 from models import *
@@ -81,6 +81,12 @@ def main():
     answer = answer1[0]
 
     # preprocess
+    nlp = spacy.load('en')
+    context_doc = nlp(context)
+    question_doc = nlp(question)
+
+    context_token = context_doc.token_
+
     context_token = nltk.word_tokenize(context)
     question_token = nltk.word_tokenize(question)
 
