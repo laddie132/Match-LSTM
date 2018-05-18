@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 def test(config_path, out_path):
-    logger.info('------------Match-LSTM Evaluate--------------')
+    logger.info('------------MODEL PREDICT--------------')
     logger.info('loading config file...')
     global_config = read_config(config_path)
 

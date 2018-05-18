@@ -1,6 +1,6 @@
 # Match-LSTM
 
-Here we implement the MatchLSTM (Wang and Jiang 2016) model, R-Net(Wang et al. 2017) model and M-Reader(Hu et al. 2017) on SQuAD (Rajpurkar et al., 2016).
+Here we implement the MatchLSTM (Wang and Jiang 2016) model, R-Net(Wang et al. 2017) model and M-Reader(Hu et al. 2017) on SQuAD (Rajpurkar et al. 2016).
 
 Maybe there are some details different from initial paper.
 
@@ -89,7 +89,7 @@ Here we provide some scipt to analysis your model output, such as `analysis_log.
 
 - [Wang, Shuohang, and Jing Jiang. "Machine comprehension using match-lstm and answer pointer." arXiv preprint arXiv:1608.07905 (2016).](https://arxiv.org/abs/1608.07905)
 - [R-NET: MACHINE READING COMPREHENSION WITH SELF-MATCHING NETWORKS](https://www.microsoft.com/en-us/research/wp-content/uploads/2017/05/r-net.pdf)
-- [Reinforced Mnemonic Reader for Machine Comprehension](https://arxiv.org/abs/1705.02798)
+- [Hu, Minghao, Yuxing Peng, and Xipeng Qiu. "Reinforced mnemonic reader for machine comprehension." CoRR, abs/1705.02798 (2017).](https://arxiv.org/abs/1705.02798)
 
 ## License
 

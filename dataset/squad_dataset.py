@@ -25,7 +25,7 @@ class SquadDataset:
     def __init__(self, global_config):
         self._data = {}
         self._attr = {}
-        self._meta_data = {}
+        self.meta_data = {}
         self.global_config = global_config
 
         # whether preprocessing squad dataset
@@ -60,9 +60,9 @@ class SquadDataset:
 
             # 'id2word', 'id2char', 'id2pos', 'id2ent'
             for key in f['meta_data'].keys():
-                self._meta_data[key] = np.array(f['meta_data'][key])
-        self._meta_data['char2id'] = dict(zip(self._meta_data['id2char'],
-                                              range(len(self._meta_data['id2char']))))
+                self.meta_data[key] = np.array(f['meta_data'][key])
+        self._char2id = dict(zip(self.meta_data['id2char'],
+                                 range(len(self.meta_data['id2char']))))
 
     def get_dataloader_train(self, batch_size, num_workers):
         """
@@ -91,7 +91,7 @@ class SquadDataset:
         dataset = CQA_Dataset(data['context'],
                               data['question'],
                               data['answer_range'],
-                              self._meta_data,
+                              self.meta_data,
                               self.global_config['preprocess'])
         if shuffle:
             sampler = SortedBatchSampler(dataset.get_lengths(), batch_size)
@@ -271,7 +271,7 @@ class SquadDataset:
         :param s_id:
         :return:
         """
-        s = map(lambda id: self._meta_data['id2word'][id], s_id)
+        s = map(lambda id: self.meta_data['id2word'][id], s_id)
         return list(s)
 
     def sentence_word2id(self, s):
@@ -281,18 +281,18 @@ class SquadDataset:
         :param s:
         :return:
         """
-        s_id = map(lambda word: np.where(self._meta_data['id2word'] == word)[0][0], s)
+        s_id = map(lambda word: np.where(self.meta_data['id2word'] == word)[0][0], s)
         return np.array(list(s_id))
 
     def word_id2char(self, w_id):
-        w = map(lambda id: self._meta_data['id2char'][id], w_id)
+        w = map(lambda id: self.meta_data['id2char'][id], w_id)
         return list(w)
 
     def word_char2id(self, w):
         if w == PreprocessData.padding:  # not actual word
             return np.ones(1, )  # make sure word length>0 and right encoding, here any none-zero value not effect
 
-        w_id = map(lambda ch: self._meta_data['char2id'][ch], w)
+        w_id = map(lambda ch: self._char2id[ch], w)
         return np.array(list(w_id))
 
     def sentence_char2id(self, s, max_len=None):

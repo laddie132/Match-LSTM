@@ -13,6 +13,7 @@ import logging
 import numpy as np
 from functools import reduce
 from utils.functions import pad_sequences
+from .doc_text import DocText
 
 logger = logging.getLogger(__name__)
 
@@ -393,49 +394,6 @@ class PreprocessData:
         self._export_squad_hdf5()
 
         logger.info('finished.')
-
-
-class DocText:
-
-    def __init__(self, nlp, text, config):
-        doc = nlp(text)
-        self.config = config
-        self.token = []
-        self.lemma = []
-        self.pos = []
-        self.ent = []
-        self.em = []
-        self.em_lemma = []
-
-        for t in doc:
-            if t.is_space:
-                continue
-
-            self.token.append(t.text)
-
-            if config['use_em_lemma']:
-                self.lemma.append(t.lemma_)
-                self.em_lemma.append(0)
-
-            if config['use_pos']:
-                self.pos.append(t.tag_)  # also be t.pos_
-
-            if config['use_ent']:
-                self.ent.append(t.ent_type_)
-
-            if config['use_em']:
-                self.em.append(0)
-
-    def __len__(self):
-        return len(self.token)
-
-    def update_em(self, doc_text2):
-        for i in range(len(self.em)):
-            if self.config['use_em'] and self.token[i] in doc_text2.token:
-                self.em[i] = 1
-
-            if self.config['use_em_lemma'] and self.lemma[i] in doc_text2.lemma:
-                self.em_lemma[i] = 1
 
 
 def dict2array(data_doc):

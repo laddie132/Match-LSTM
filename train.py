@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 def train(config_path):
-    logger.info('------------Match-LSTM Train--------------')
+    logger.info('------------MODEL TRAIN--------------')
     logger.info('loading config file...')
     global_config = read_config(config_path)
 
