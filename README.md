@@ -1,6 +1,6 @@
 # Match-LSTM
 
-Here we implement the MatchLSTM (Wang and Jiang, 2016) model and R-Net(MSRA, 2017) model on SQuAD (Rajpurkar et al., 2016).
+Here we implement the MatchLSTM (Wang and Jiang 2016) model, R-Net(Wang et al. 2017) model and M-Reader(Hu et al. 2017) on SQuAD (Rajpurkar et al., 2016).
 
 Maybe there are some details different from initial paper.
 
@@ -9,6 +9,7 @@ Maybe there are some details different from initial paper.
 - python3
 - anaconda
 - hdf5
+- [spaCy](https://spacy.io/)
 - [pytorch 0.4](https://github.com/pytorch/pytorch/tree/v0.4.0)
 - [GloVe word embeddings](https://nlp.stanford.edu/projects/glove/)
 
@@ -28,10 +29,13 @@ Evaluate results on SQuAD dev set:
 
 model|em|f1
 ---|---|---|
-Match-LSTM+ with linear|**66.94**|**76.20**
-Match-LSTM+ with pooling and bp|66.93|76.09
+Match-LSTM+ with linear|**68.0**|**77.6**
+Match-LSTM+ with pooling and bp|66.9|76.1
+Match-LSTM(paper)|64.1|73.9
 R-NET-45(our version)|64.19|73.62
 R-NET(paper)|72.3|80.6
+M-Reader(our version)||
+M-Reader+RL(paper)|72.1|81.6
 
 > - 'bp' refers to bidirectional ptr-net
 > - 'linear' refers to linear initial pointer-net with FC layer
@@ -46,13 +50,15 @@ R-NET(paper)|72.3|80.6
 - -c config_file: Defined dataset, model, train methods and so on. Default: `config/global_config.yaml`
 - -o ans_path: *see in test step*
 
-> there several models you can choose in `config/global_config.yaml`, like 'match-lstm', 'match-lstm+' and 'r-net'. view and modify. 
+> there several models you can choose in `config/global_config.yaml`, like 'match-lstm', 'match-lstm+', 'r-net' and 'm-reader'. view and modify. 
 
 ### Preprocess
 
 1. Put the GloVe embeddings file to the `data/` directory
 2. Put the SQuAD dataset to the `data/` directory
 3. Run `python run.py preprocess` to generate hdf5 file of SQuAD dataset
+
+> Note that preprocess will take a long time if multi-features used. Maybe close to an hour.
 
 ### Train
 
@@ -83,6 +89,7 @@ Here we provide some scipt to analysis your model output, such as `analysis_log.
 
 - [Wang, Shuohang, and Jing Jiang. "Machine comprehension using match-lstm and answer pointer." arXiv preprint arXiv:1608.07905 (2016).](https://arxiv.org/abs/1608.07905)
 - [R-NET: MACHINE READING COMPREHENSION WITH SELF-MATCHING NETWORKS](https://www.microsoft.com/en-us/research/wp-content/uploads/2017/05/r-net.pdf)
+- [Reinforced Mnemonic Reader for Machine Comprehension](https://arxiv.org/abs/1705.02798)
 
 ## License
 

@@ -4,6 +4,7 @@
 __author__ = 'han'
 
 import os
+import re
 import zipfile
 import spacy
 import json
@@ -171,7 +172,7 @@ class PreprocessData:
                         continue
 
                     gen_ans = ''.join(cur_context_doc.token[pos_s:(pos_e + 1)]).replace(' ', '')
-                    true_ans = cur_ans['text'].replace(' ', '').replace('\u202f', '')
+                    true_ans = self.remove_white_space(cur_ans['text'])
                     if true_ans not in gen_ans:
                         logger.error("Answer position wrong." +
                                      "\nContext:" + cur_context +
@@ -191,15 +192,21 @@ class PreprocessData:
                 'answer_range': answers_range_wid,
                 'samples_id': samples_id}
 
-    def find_ans_start_end(self, context_text, context_doc, answer_text, answer_start):
-        prev_context_token = [w.text for w in self._nlp(context_text[:answer_start]) if not w.is_space]
+    def remove_white_space(self, s):
+        return re.sub('[ \t\n\r\u00A0\u1680​\u180e\u2000-\u2009\u200a​​\u202f\u205f​\u3000\u2028\u2029]', '', s)
 
-        # if answer start word not the same in context
-        last_pos = len(prev_context_token) - 1
-        while len(prev_context_token) > 0 and prev_context_token[last_pos] != context_doc.token[last_pos]:
-            prev_context_token = prev_context_token[:last_pos]
-            last_pos = len(prev_context_token) - 1
-        pos_s = len(prev_context_token)
+    def find_ans_start_end(self, context_text, context_doc, answer_text, answer_start):
+        # find answer start position
+        pre_ans_len = len(self.remove_white_space(context_text[:answer_start]))
+        tmp_len = 0
+        pos_s = 0
+
+        for i in range(len(context_doc)):
+            tmp_len += len(context_doc.token[i])
+
+            if tmp_len > pre_ans_len:
+                pos_s = i
+                break
 
         # find answer end position
         pos_e = 0
@@ -210,8 +217,6 @@ class PreprocessData:
 
         for i in range(pos_s, len(context_doc)):
             s = context_doc.token[i]
-            if s == '``' or s == "''":  # because nltk word_tokenize will replace them
-                s = '"'
 
             tmp_str += s
             if tmp_ans in tmp_str:
@@ -279,7 +284,7 @@ class PreprocessData:
         handle glove embeddings, restore embeddings with dictionary
         :return:
         """
-        logger.debug("read glove from text file %s" % self._glove_path)
+        logger.info("read glove from text file %s" % self._glove_path)
         with zipfile.ZipFile(self._glove_path, 'r') as zf:
             if len(zf.namelist()) != 1:
                 raise ValueError('glove file "%s" not recognized' % self._glove_path)
@@ -294,7 +299,7 @@ class PreprocessData:
 
                     word_num += 1
                     if word_num % 10000 == 0:
-                        logger.debug('handle word No.%d' % word_num)
+                        logger.info('handle word No.%d' % word_num)
 
     def _export_squad_hdf5(self):
         """
