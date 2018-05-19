@@ -475,8 +475,12 @@ class SortedBatchSampler(Sampler):
         indices = np.argsort(lengths, order=('l1', 'l2', 'rand'))
         batches = [indices[i:i + self.batch_size]
                    for i in range(0, len(indices), self.batch_size)]
+
+        last = batches[-1]  # last batch may not be full batch size
         if self.shuffle:
+            batches = batches[:len(batches)-1]
             np.random.shuffle(batches)
+            batches.append(last)
         return iter([i for batch in batches for i in batch])
 
     def __len__(self):

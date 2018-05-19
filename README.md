@@ -9,7 +9,7 @@ Maybe there are some details different from initial paper.
 - python3
 - anaconda
 - hdf5
-- [spaCy](https://spacy.io/)
+- [spaCy 2.0](https://spacy.io/)
 - [pytorch 0.4](https://github.com/pytorch/pytorch/tree/v0.4.0)
 - [GloVe word embeddings](https://nlp.stanford.edu/projects/glove/)
 
@@ -22,20 +22,18 @@ The Match-LSTM+ model is a little change from Match-LSTM.
 - add separated char-level encoding
 - add aggregation layer with one GRU layer
 - initial GRU first state in pointer-net
-    - linear method: add full-connect layer after match layer
-    - pooling method: add attention-pooling layer after question encoding
+    - add full-connect layer after match layer
 
 Evaluate results on SQuAD dev set:
 
 model|em|f1
 ---|---|---|
-Match-LSTM+ with linear|**68.0**|**77.6**
-Match-LSTM+ with pooling and bp|66.9|76.1
-Match-LSTM(paper)|64.1|73.9
-R-NET-45(our version)|64.19|73.62
-R-NET(paper)|72.3|80.6
-M-Reader(our version)|70.4|79.6
-M-Reader+RL(paper)|72.1|81.6
+Match-LSTM+ (our version)|**68.0**|**77.6**
+Match-LSTM (paper)|64.1|73.9
+R-NET-45 (our version)|64.2|73.6
+R-NET (paper)|72.3|80.6
+M-Reader (our version)|**70.4**|**79.6**
+M-Reader+RL (paper)|72.1|81.6
 
 > - 'bp' refers to bidirectional ptr-net
 > - 'linear' refers to linear initial pointer-net with FC layer
