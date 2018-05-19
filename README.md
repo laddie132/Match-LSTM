@@ -18,8 +18,9 @@ Maybe there are some details different from initial paper.
 The Match-LSTM+ model is a little change from Match-LSTM.
 
 - replace LSTM with GRU
-- add gated-attention match
+- add gated-attention match like r-net
 - add separated char-level encoding
+- add additional features like M-Reader
 - add aggregation layer with one GRU layer
 - initial GRU first state in pointer-net
     - add full-connect layer after match layer
@@ -28,17 +29,14 @@ Evaluate results on SQuAD dev set:
 
 model|em|f1
 ---|---|---|
-Match-LSTM+ (our version)|**68.0**|**77.6**
+Match-LSTM+ (our version)|**69.3**|**78.8**
 Match-LSTM (paper)|64.1|73.9
 R-NET-45 (our version)|64.2|73.6
 R-NET (paper)|72.3|80.6
 M-Reader (our version)|**70.4**|**79.6**
 M-Reader+RL (paper)|72.1|81.6
 
-> - 'bp' refers to bidirectional ptr-net
-> - 'linear' refers to linear initial pointer-net with FC layer
-> - 'pooling' refers to attention-pooling inital pointer-net
-> - 'R-NET-45' refers to R-NET with hidden size of 45
+> 'R-NET-45' refers to R-NET with hidden size of 45
 
 
 ## Usage

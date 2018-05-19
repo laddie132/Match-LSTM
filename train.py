@@ -96,7 +96,7 @@ def train(config_path):
 
     clip_grad_max = global_config['train']['clip_grad_norm']
 
-    best_valid_f1 = None
+    best_avg = 0.
     # every epoch
     for epoch in range(global_config['train']['epoch']):
         # train
@@ -118,17 +118,18 @@ def train(config_path):
                                                                        batch_data=batch_dev_data,
                                                                        epoch=epoch,
                                                                        device=device)
+            valid_avg = (valid_score_em + valid_score_f1) / 2
         logger.info("epoch=%d, ave_score_em=%.2f, ave_score_f1=%.2f, sum_loss=%.5f" %
                     (epoch, valid_score_em, valid_score_f1, valid_loss))
 
-        # save model when best f1 score
-        if best_valid_f1 is None or valid_score_f1 > best_valid_f1:
+        # save model when best avg score
+        if valid_avg > best_avg:
             save_model(model,
                        epoch=epoch,
                        model_weight_path=global_config['data']['model_path'],
                        checkpoint_path=global_config['data']['checkpoint_path'])
             logger.info("saving model weight on epoch=%d" % epoch)
-            best_valid_f1 = valid_score_f1
+            best_avg = valid_avg
 
     logger.info('finished.')
 
