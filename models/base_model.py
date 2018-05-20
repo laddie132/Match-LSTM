@@ -184,7 +184,7 @@ class BaseModel(torch.nn.Module):
             raise ValueError('Wrong init_ptr_hidden mode select %s, change to pooling or linear'
                              % self.init_ptr_hidden_mode)
 
-    def forward(self, context, question, context_char=None, question_char=None):
+    def forward(self, context, question, context_char=None, question_char=None, context_f=None, question_f=None):
         if self.enable_char:
             assert context_char is not None and question_char is not None
 

@@ -6,12 +6,14 @@ __author__ = 'han'
 import os
 import torch
 import logging
-import nltk
+import spacy
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from dataset.h5_dataset import Dataset
 from models import *
+from dataset.squad_dataset import SquadDataset
+from dataset.preprocess_data import DocText
 from utils.load_config import init_logging, read_config
 from utils.functions import to_long_tensor, count_parameters, draw_heatmap_sea
 from dataset.preprocess_cmrc import hanlp_segment
@@ -21,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 def main():
-    logger.info('------------Match-LSTM TEST INPUT--------------')
+    logger.info('------------MODEL TEST INPUT--------------')
     logger.info('loading config file...')
     global_config = read_config('config/CMRC.yaml')
 
@@ -46,6 +48,8 @@ def main():
         model = MatchLSTMPlus(dataset_h5_path)
     elif model_choose == 'r-net':
         model = RNet(dataset_h5_path)
+    elif model_choose == 'm-reader':
+        model = MReader(dataset_h5_path)
     else:
         raise ValueError('model "%s" in config file not recoginized' % model_choose)
 
@@ -92,8 +96,9 @@ def main():
 
     # preprocess
     if global_config['test']['is_english']:
-        context_token = nltk.word_tokenize(context)
-        question_token = nltk.word_tokenize(question)
+        nlp = spacy.load('en')
+        context_doc = DocText(nlp, context, global_config['preprocess'])
+        question_doc = DocText(nlp, question, global_config['preprocess'])
 
         link_char = ' '
     else:
@@ -103,21 +108,24 @@ def main():
         link_char = ''
         # mpl.rcParams['font.sans-serif'] = ['Microsoft YaHei']
         mpl.rcParams['font.sans-serif'] = ['SimHei']
+    
+    context_doc.update_em(question_doc)
+    question_doc.update_em(context_doc)
 
-    context_array = np.array(context_token)
+    context_token = context_doc.token
+    question_token = question_doc.token
 
-    context_id = dataset.sentence_word2id(context_token)
-    question_id = dataset.sentence_word2id(question_token)
+    context_id_char = to_long_tensor(dataset.sentence_char2id(context_token))
+    question_id_char = to_long_tensor(dataset.sentence_char2id(question_token))
 
-    context_id_char = dataset.sentence_char2id(context_token)
-    question_id_char = dataset.sentence_char2id(question_token)
+    context_id, context_f = context_doc.to_id(dataset.meta_data)
+    question_id, question_f = question_doc.to_id(dataset.meta_data)
+    
+    bat_input = [context_id, question_id, context_id_char, question_id_char, context_f, question_f]
+    bat_input = [x.unsqueeze(0) if x is not None else x for x in bat_input]
 
-    context_var, question_var, context_var_char, question_var_char = [to_long_tensor(x).unsqueeze(0)
-                                                                      for x in [context_id, question_id,
-                                                                                context_id_char, question_id_char]]
-
-    out_ans_prop, out_ans_range, vis_param = model.forward(context_var, question_var, context_var_char, question_var_char)
-    out_ans_range = out_ans_range.cpu().data.numpy()
+    out_ans_prop, out_ans_range, vis_param = model.forward(*bat_input)
+    out_ans_range = out_ans_range.numpy()
 
     start = out_ans_range[0][0]
     end = out_ans_range[0][1] + 1
@@ -131,11 +139,11 @@ def main():
     s = 0
     e = 48
 
-    x_left = vis_param['match']['left']['alpha'][0, :, s:e].data.numpy()
-    x_right = vis_param['match']['right']['alpha'][0, :, s:e].data.numpy()
+    x_left = vis_param['match']['left']['alpha'][0, :, s:e].numpy()
+    x_right = vis_param['match']['right']['alpha'][0, :, s:e].numpy()
 
-    x_left_gated = vis_param['match']['left']['gated'][0, :, s:e].data.numpy()
-    x_right_gated = vis_param['match']['right']['gated'][0, :, s:e].data.numpy()
+    x_left_gated = vis_param['match']['left']['gated'][0, :, s:e].numpy()
+    x_right_gated = vis_param['match']['right']['gated'][0, :, s:e].numpy()
 
     draw_heatmap_sea(x_left,
                      xlabels=context_token[s:e],
@@ -152,8 +160,8 @@ def main():
 
     enable_self_match = False
     if enable_self_match:
-        x_self_left = vis_param['self']['left']['alpha'][0, s:e, s:e].data.numpy()
-        x_self_right = vis_param['self']['right']['alpha'][0, s:e, s:e].data.numpy()
+        x_self_left = vis_param['self']['left']['alpha'][0, s:e, s:e].numpy()
+        x_self_right = vis_param['self']['right']['alpha'][0, s:e, s:e].numpy()
 
         draw_heatmap_sea(x_self_left,
                          xlabels=context_token[s:e],

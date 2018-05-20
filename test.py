@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 def test(config_path, out_path):
-    logger.info('------------Match-LSTM Evaluate--------------')
+    logger.info('------------MODEL PREDICT--------------')
     logger.info('loading config file...')
     global_config = read_config(config_path)
 
@@ -51,6 +51,8 @@ def test(config_path, out_path):
         model = MatchLSTMPlus(dataset_h5_path)
     elif model_choose == 'r-net':
         model = RNet(dataset_h5_path)
+    elif model_choose == 'm-reader':
+        model = MReader(dataset_h5_path)
     else:
         raise ValueError('model "%s" in config file not recoginized' % model_choose)
 
@@ -70,14 +72,11 @@ def test(config_path, out_path):
     # forward
     logger.info('forwarding...')
 
-    enable_char = False
-    if model_choose == 'match-lstm+' or model_choose == 'r-net' or (
-            model_choose == 'base' and model_config['encoder']['enable_char']):
-        enable_char = True
     batch_size = global_config['test']['batch_size']
-    # batch_dev_data = dataset.get_dataloader_dev(batch_size)
-    batch_dev_data = list(dataset.get_batch_dev(batch_size))
     is_english = global_config['test']['is_english']
+    num_workers = global_config['global']['num_data_workers']
+
+    batch_dev_data = dataset.get_dataloader_dev(batch_size, num_workers)
 
     # to just evaluate score or write answer to file
     if out_path is None:
@@ -86,17 +85,15 @@ def test(config_path, out_path):
                                                      criterion=criterion,
                                                      batch_data=batch_dev_data,
                                                      epoch=None,
-                                                     device=device,
-                                                     enable_char=enable_char,
-                                                     batch_char_func=dataset.gen_batch_with_char)
+                                                     device=device)
         logger.info("test: ave_score_em=%.2f, ave_score_f1=%.2f, sum_loss=%.5f" % (score_em, score_f1, sum_loss))
     else:
+        context_right_space = dataset.get_all_ct_right_space_dev()
         predict_ans = predict_on_model(model=model,
                                        batch_data=batch_dev_data,
                                        device=device,
-                                       enable_char=enable_char,
-                                       batch_char_func=dataset.gen_batch_with_char,
                                        id_to_word_func=dataset.sentence_id2word,
+                                       right_space=context_right_space,
                                        is_english=is_english)
         samples_id = dataset.get_all_samples_id_dev()
         ans_with_id = dict(zip(samples_id, predict_ans))
@@ -108,28 +105,42 @@ def test(config_path, out_path):
     logging.info('finished.')
 
 
-def predict_on_model(model, batch_data, device, enable_char, batch_char_func, id_to_word_func, is_english):
+def predict_on_model(model, batch_data, device, id_to_word_func, right_space, is_english):
     batch_cnt = len(batch_data)
     answer = []
 
+    cnt = 0
     for bnum, batch in enumerate(batch_data):
+        batch = [x.to(device) if x is not None else x for x in batch]
+        bat_context = batch[0]
+        bat_answer_range = batch[-1]
 
-        # batch data
-        bat_context, bat_question, bat_context_char, bat_question_char, bat_answer_range = \
-            batch_char_func(batch, enable_char=enable_char, device=device)
+        # forward
+        batch_input = batch[:len(batch) - 1]
+        _, tmp_ans_range, _ = model.forward(*batch_input)
 
-        _, tmp_ans_range, _ = model.forward(bat_context, bat_question, bat_context_char, bat_question_char)
         tmp_context_ans = zip(bat_context.cpu().data.numpy(),
                               tmp_ans_range.cpu().data.numpy())
 
-        link_char = ' ' if is_english else ''
-        tmp_ans = [link_char.join(id_to_word_func(c[a[0]:(a[1] + 1)])) for c, a in tmp_context_ans]
-        answer += tmp_ans
+        # generate initial answer text
+        i = 0
+        for c, a in tmp_context_ans:
+            cur_no = cnt + i
+            tmp_ans = id_to_word_func(c[a[0]:(a[1] + 1)])
+            cur_space = right_space[cur_no][a[0]:(a[1]+1)]
 
+            cur_ans = ''
+            for j, word in enumerate(tmp_ans):
+                cur_ans += word
+                if is_english and cur_space[j]:
+                    cur_ans += ' '
+            answer.append(cur_ans.strip())
+            i += 1
+        cnt += i
         logging.info('batch=%d/%d' % (bnum, batch_cnt))
 
         # manual release memory, todo: really effect?
-        del bat_context, bat_question, bat_answer_range, bat_context_char, bat_question_char
+        del bat_context, bat_answer_range, batch, batch_input
         del tmp_ans_range
         # torch.cuda.empty_cache()
 

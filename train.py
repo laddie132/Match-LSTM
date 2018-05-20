@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 def train(config_path):
-    logger.info('------------Match-LSTM Train--------------')
+    logger.info('------------MODEL TRAIN--------------')
     logger.info('loading config file...')
     global_config = read_config(config_path)
 
@@ -50,6 +50,8 @@ def train(config_path):
         model = MatchLSTMPlus(dataset_h5_path)
     elif model_choose == 'r-net':
         model = RNet(dataset_h5_path)
+    elif model_choose == 'm-reader':
+        model = MReader(dataset_h5_path)
     else:
         raise ValueError('model "%s" in config file not recoginized' % model_choose)
 
@@ -88,18 +90,13 @@ def train(config_path):
     train_batch_size = global_config['train']['batch_size']
     valid_batch_size = global_config['train']['valid_batch_size']
 
-    # batch_train_data = dataset.get_dataloader_train(train_batch_size)
-    # batch_dev_data = dataset.get_dataloader_dev(valid_batch_size)
-    batch_train_data = list(dataset.get_batch_train(train_batch_size))
-    batch_dev_data = list(dataset.get_batch_dev(valid_batch_size))
+    num_workers = global_config['global']['num_data_workers']
+    batch_train_data = dataset.get_dataloader_train(train_batch_size, num_workers)
+    batch_dev_data = dataset.get_dataloader_dev(valid_batch_size, num_workers)
 
     clip_grad_max = global_config['train']['clip_grad_norm']
-    enable_char = False
-    if model_choose == 'match-lstm+' or model_choose == 'r-net' or (
-            model_choose == 'base' and model_config['encoder']['enable_char']):
-        enable_char = True
 
-    best_valid_f1 = None
+    best_avg = 0.
     # every epoch
     for epoch in range(global_config['train']['epoch']):
         # train
@@ -110,9 +107,7 @@ def train(config_path):
                                   batch_data=batch_train_data,
                                   epoch=epoch,
                                   clip_grad_max=clip_grad_max,
-                                  device=device,
-                                  enable_char=enable_char,
-                                  batch_char_func=dataset.gen_batch_with_char)
+                                  device=device)
         logger.info('epoch=%d, sum_loss=%.5f' % (epoch, sum_loss))
 
         # evaluate
@@ -122,25 +117,24 @@ def train(config_path):
                                                                        criterion=criterion,
                                                                        batch_data=batch_dev_data,
                                                                        epoch=epoch,
-                                                                       device=device,
-                                                                       enable_char=enable_char,
-                                                                       batch_char_func=dataset.gen_batch_with_char)
+                                                                       device=device)
+            valid_avg = (valid_score_em + valid_score_f1) / 2
         logger.info("epoch=%d, ave_score_em=%.2f, ave_score_f1=%.2f, sum_loss=%.5f" %
                     (epoch, valid_score_em, valid_score_f1, valid_loss))
 
-        # save model when best f1 score
-        if best_valid_f1 is None or valid_score_f1 > best_valid_f1:
+        # save model when best avg score
+        if valid_avg > best_avg:
             save_model(model,
                        epoch=epoch,
                        model_weight_path=global_config['data']['model_path'],
                        checkpoint_path=global_config['data']['checkpoint_path'])
             logger.info("saving model weight on epoch=%d" % epoch)
-            best_valid_f1 = valid_score_f1
+            best_avg = valid_avg
 
     logger.info('finished.')
 
 
-def train_on_model(model, criterion, optimizer, batch_data, epoch, clip_grad_max, device, enable_char, batch_char_func):
+def train_on_model(model, criterion, optimizer, batch_data, epoch, clip_grad_max, device):
     """
     train on every batch
     :param enable_char:
@@ -160,11 +154,12 @@ def train_on_model(model, criterion, optimizer, batch_data, epoch, clip_grad_max
         optimizer.zero_grad()
 
         # batch data
-        bat_context, bat_question, bat_context_char, bat_question_char, bat_answer_range = \
-            batch_char_func(batch, enable_char=enable_char, device=device)
+        batch = [x.to(device) if x is not None else x for x in batch]
+        bat_answer_range = batch[-1]
 
         # forward
-        ans_range_prop, _, _ = model.forward(bat_context, bat_question, bat_context_char, bat_question_char)
+        batch_input = batch[:len(batch)-1]
+        ans_range_prop, _, _ = model.forward(*batch_input)
 
         # get loss
         loss = criterion.forward(ans_range_prop, bat_answer_range)
@@ -180,8 +175,7 @@ def train_on_model(model, criterion, optimizer, batch_data, epoch, clip_grad_max
         logger.info('epoch=%d, batch=%d/%d, loss=%.5f' % (epoch, i, batch_cnt, batch_loss))
 
         # manual release memory, todo: really effect?
-        del bat_context, bat_question, bat_answer_range, bat_context_char, bat_question_char
-        del ans_range_prop, loss
+        del batch, ans_range_prop, loss
         # torch.cuda.empty_cache()
 
     return sum_loss

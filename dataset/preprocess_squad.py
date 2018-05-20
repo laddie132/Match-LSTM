@@ -4,14 +4,16 @@
 __author__ = 'han'
 
 import os
+import re
 import zipfile
-import nltk
+import spacy
 import json
 import h5py
 import logging
 import numpy as np
 from functools import reduce
 from utils.functions import pad_sequences
+from .doc_text import DocText, Space
 
 logger = logging.getLogger(__name__)
 
@@ -22,54 +24,71 @@ class PreprocessData:
     """
 
     padding = '__padding__'  # id = 0
-    padding_idx = 0          # also same to char level padding values
+    padding_idx = 0  # all the features padding idx, exclude answer_range
     answer_padding_idx = -1
 
-    __compress_option = dict(compression="gzip", compression_opts=9, shuffle=False)
+    _compress_option = dict(compression="gzip", compression_opts=9, shuffle=False)
 
     def __init__(self, global_config):
         # data config
-        self.__dev_path = ''
-        self.__train_path = ''
-        self.__export_squad_path = ''
-        self.__glove_path = ''
-        self.__embedding_size = 300
-        self.__ignore_max_len = 10000
-        self.__load_config(global_config)
+        self._dev_path = ''
+        self._train_path = ''
+        self._export_squad_path = ''
+        self._glove_path = ''
+        self._embedding_size = 300
+        self._ignore_max_len = 10000
+        self._load_config(global_config)
 
         # preprocess config
-        self.__max_context_token_len = 0
-        self.__max_question_token_len = 0
-        self.__max_answer_len = 0
+        self._max_answer_len = 0
 
         # temp data
-        self.__word2id = {self.padding: 0}
-        self.__char2id = {self.padding: 0, '`': 1}  # because nltk word tokenize will replace '"' with '``'
-        self.__word2vec = {self.padding: [0. for i in range(self.__embedding_size)]}
-        self.__oov_num = 0
+        self._word2id = {self.padding: 0}
+        self._char2id = {self.padding: 0, '`': 1}  # because nltk word tokenize will replace '"' with '``'
+        self._pos2id = {self.padding: 0}
+        self._ent2id = {self.padding: 0}
+        self._word2vec = {self.padding: [0. for i in range(self._embedding_size)]}
+        self._oov_num = 0
 
         # data need to store in hdf5 file
-        self.__meta_data = {'id2vec': [[0. for i in range(self.__embedding_size)]],
-                            'id2word': [self.padding],
-                            'id2char': [self.padding, '`']}
-        self.__data = {}
-        self.__attr = {}
+        self._meta_data = {'id2vec': [[0. for i in range(self._embedding_size)]],
+                           'id2word': [self.padding],
+                           'id2char': [self.padding, '`'],
+                           'id2pos': [self.padding],
+                           'id2ent': [self.padding]}
+        self._data = {}
+        self._attr = {}
 
-    def __load_config(self, global_config):
+        self._nlp = spacy.load('en')
+        self._nlp.remove_pipe('parser')
+        if not any([self._use_em_lemma, self._use_pos, self._use_ent]):
+            self._nlp.remove_pipe('tagger')
+        if not self._use_ent:
+            self._nlp.remove_pipe('ner')
+
+    def _load_config(self, global_config):
         """
         load config from a dictionary, such as dataset path
         :param global_config: dictionary
         :return:
         """
         data_config = global_config['data']
-        self.__train_path = data_config['dataset']['train_path']
-        self.__dev_path = data_config['dataset']['dev_path']
-        self.__export_squad_path = data_config['dataset_h5']
-        self.__glove_path = data_config['embedding_path']
-        self.__ignore_max_len = data_config['ignore_max_len']
-        self.__embedding_size = int(global_config['model']['encoder']['word_embedding_size'])
+        self._train_path = data_config['dataset']['train_path']
+        self._dev_path = data_config['dataset']['dev_path']
+        self._export_squad_path = data_config['dataset_h5']
+        self._glove_path = data_config['embedding_path']
 
-    def __read_json(self, path):
+        self.preprocess_config = global_config['preprocess']
+        self._ignore_max_len = self.preprocess_config['ignore_max_len']
+        self._use_char = self.preprocess_config['use_char']
+        self._use_pos = self.preprocess_config['use_pos']
+        self._use_ent = self.preprocess_config['use_ent']
+        self._use_em = self.preprocess_config['use_em']
+        self._use_em_lemma = self.preprocess_config['use_em_lemma']
+
+        self._embedding_size = int(self.preprocess_config['word_embedding_size'])
+
+    def _read_json(self, path):
         """
         read json format file from raw squad text
         :param path: squad file path
@@ -82,139 +101,191 @@ class PreprocessData:
         data_list_tmp = [ele['paragraphs'] for ele in data['data']]
         contexts_qas = reduce(lambda a, b: a + b, data_list_tmp)
 
-        self.__attr['dataset_name'] = 'squad-' + version
+        self._attr['dataset_name'] = 'squad-' + version
         return contexts_qas
 
-    def __build_data(self, contexts_qas, training):
+    def _build_data(self, contexts_qas, training):
         """
         handle squad data to (context, question, answer_range) with word id representation
         :param contexts_qas: a context with several question-answers
         :return:
         """
-        contexts_wid = []
-        questions_wid = []
+        contexts_doc = []
+        questions_doc = []
         answers_range_wid = []  # each answer use the [start,end] representation, all the answer horizontal concat
         samples_id = []
 
+        cnt = 0
+
+        # every context
         for question_grp in contexts_qas:
             cur_context = question_grp['context']
             cur_qas = question_grp['qas']
 
-            cur_context_toke = nltk.word_tokenize(cur_context)
-            if training and len(cur_context_toke) > self.__ignore_max_len:  # some context token len too large, such as 766
+            cur_context_doc = DocText(self._nlp, cur_context, self.preprocess_config)
+            if training and len(cur_context_doc) > self._ignore_max_len:  # some context token len too large
                 continue
 
-            self.__update_to_char(cur_context)
-            cur_context_ids = self.__sentence_to_id(cur_context_toke)
-            self.__max_context_token_len = max(self.__max_context_token_len, len(cur_context_ids))
+            if self._use_char:
+                self._update_to_char(cur_context)
 
+            cur_context_ids = self._doctext_to_id(cur_context_doc)
+
+            # every question-answer
             for qa in cur_qas:
                 cur_question = qa['question']
-                self.__update_to_char(cur_question)
-                cur_question_toke = nltk.word_tokenize(cur_question)
-                cur_question_ids = self.__sentence_to_id(cur_question_toke)
-                self.__max_question_token_len = max(self.__max_question_token_len, len(cur_question_ids))
 
-                contexts_wid.append(cur_context_ids)
-                questions_wid.append(cur_question_ids)
+                if self._use_char:
+                    self._update_to_char(cur_question)
+
+                cur_question_doc = DocText(self._nlp, cur_question, self.preprocess_config)
+                cur_question_ids = self._doctext_to_id(cur_question_doc)
+
+                # get em feature
+                if self._use_em or self._use_em_lemma:
+                    cur_context_doc.update_em(cur_question_doc)
+                    cur_question_doc.update_em(cur_context_doc)
+
+                cur_context_ids['em'] = cur_context_doc.em
+                cur_context_ids['em_lemma'] = cur_context_doc.em_lemma
+                cur_question_ids['em'] = cur_question_doc.em
+                cur_question_ids['em_lemma'] = cur_question_doc.em_lemma
+
+                contexts_doc.append(cur_context_ids)
+                questions_doc.append(cur_question_ids)
                 samples_id.append(qa['id'])
 
                 # find all the answer positions
                 cur_answers = qa['answers']
-                self.__max_answer_len = max(self.__max_answer_len, len(cur_answers) * 2)
+                self._max_answer_len = max(self._max_answer_len, len(cur_answers) * 2)
 
                 cur_ans_range_ids = [0 for i in range(len(cur_answers) * 2)]
                 for idx, cur_ans in enumerate(cur_answers):
                     cur_ans_start = cur_ans['answer_start']
                     cur_ans_text = cur_ans['text']
 
-                    # add '.' help word tokenize
-                    prev_context_token = nltk.word_tokenize(cur_context[:cur_ans_start] + '.')
-                    if prev_context_token[len(prev_context_token)-1] == '.':
-                        prev_context_token = prev_context_token[:len(prev_context_token) - 1]
-
-                    # if answer start word not the same in context
-                    last_pos = len(prev_context_token)-1
-                    while len(prev_context_token) > 0 and prev_context_token[last_pos] != cur_context_toke[last_pos]:
-                        prev_context_token = prev_context_token[:last_pos]
-                        last_pos = len(prev_context_token) - 1
-                    pos_s = len(prev_context_token)
-
-                    # find answer end position
-                    pos_e = 0
-                    tmp_str = ""
-                    tmp_ans = cur_ans_text.replace(' ', '').replace('\u202f', '')
-                    if tmp_ans[0] == '.':           # squad dataset have some mistakes
-                        tmp_ans = tmp_ans[1:]
-
-                    for i in range(pos_s, len(cur_context_toke)):
-                        s = cur_context_toke[i]
-                        if s == '``' or s == "''":      # because nltk word_tokenize will replace them
-                            s = '"'
-
-                        tmp_str += s
-                        if tmp_ans in tmp_str:
-                            pos_e = i
-                            break
-
+                    pos_s, pos_e = self.find_ans_start_end(cur_context, cur_context_doc, cur_ans_text, cur_ans_start)
                     if pos_e < pos_s:
                         logger.error("Answer start position can't bigger than end position." +
                                      "\nContext:" + cur_context +
                                      "\nQuestion:" + cur_question +
                                      "\nAnswer:" + cur_ans_text)
+                        continue
+
+                    gen_ans = ''.join(cur_context_doc.token[pos_s:(pos_e + 1)]).replace(' ', '')
+                    true_ans = Space.remove_white_space(cur_ans['text'])
+                    if true_ans not in gen_ans:
+                        logger.error("Answer position wrong." +
+                                     "\nContext:" + cur_context +
+                                     "\nQuestion:" + cur_question +
+                                     "\nAnswer:" + cur_ans_text)
+                        continue
 
                     cur_ans_range_ids[(idx * 2):(idx * 2 + 2)] = [pos_s, pos_e]
-
                 answers_range_wid.append(cur_ans_range_ids)
 
-        return {'context': contexts_wid,
-                'question': questions_wid,
+                cnt += 1
+                if cnt % 100 == 0:
+                    logger.info('No.%d sample handled.' % cnt)
+
+        return {'context': contexts_doc,
+                'question': questions_doc,
                 'answer_range': answers_range_wid,
                 'samples_id': samples_id}
 
-    def __sentence_to_id(self, sentence):
+    def find_ans_start_end(self, context_text, context_doc, answer_text, answer_start):
+        # find answer start position
+        pre_ans_len = len(Space.remove_white_space(context_text[:answer_start]))
+        tmp_len = 0
+        pos_s = 0
+
+        for i in range(len(context_doc)):
+            tmp_len += len(context_doc.token[i])
+
+            if tmp_len > pre_ans_len:
+                pos_s = i
+                break
+
+        # find answer end position
+        pos_e = 0
+        tmp_str = ""
+        tmp_ans = Space.remove_white_space(answer_text)
+        if tmp_ans[0] == '.':  # squad dataset have some mistakes
+            tmp_ans = tmp_ans[1:]
+
+        for i in range(pos_s, len(context_doc)):
+            s = context_doc.token[i]
+
+            tmp_str += s
+            if tmp_ans in tmp_str:
+                pos_e = i
+                break
+
+        return pos_s, pos_e
+
+    def _doctext_to_id(self, doc_text):
         """
         transform a sentence to word index id representation
-        :param sentence: tokenized sentence
+        :param sentence: DocText
         :return: word ids
         """
 
-        ids = []
-        for word in sentence:
-            if word not in self.__word2id:
-                self.__word2id[word] = len(self.__word2id)
-                self.__meta_data['id2word'].append(word)
+        sentence = {'token': [], 'pos': [], 'ent': [], 'right_space': doc_text.right_space}
+
+        for i in range(len(doc_text)):
+
+            # word
+            word = doc_text.token[i]
+            if word not in self._word2id:
+                self._word2id[word] = len(self._word2id)
+                self._meta_data['id2word'].append(word)
 
                 # whether OOV
-                if word in self.__word2vec:
-                    self.__meta_data['id2vec'].append(self.__word2vec[word])
+                if word in self._word2vec:
+                    self._meta_data['id2vec'].append(self._word2vec[word])
                 else:
-                    self.__oov_num += 1
-                    logger.debug('No.%d OOV word %s' % (self.__oov_num, word))
-                    self.__meta_data['id2vec'].append([0. for i in range(self.__embedding_size)])
-            ids.append(self.__word2id[word])
+                    self._oov_num += 1
+                    logger.debug('No.%d OOV word %s' % (self._oov_num, word))
+                    self._meta_data['id2vec'].append([0. for i in range(self._embedding_size)])
+            sentence['token'].append(self._word2id[word])
 
-        return ids
+            # pos
+            if self._use_pos:
+                pos = doc_text.pos[i]
+                if pos not in self._pos2id:
+                    self._pos2id[pos] = len(self._pos2id)
+                    self._meta_data['id2pos'].append(pos)
+                sentence['pos'].append(self._pos2id[pos])
 
-    def __update_to_char(self, sentence):
+            # ent
+            if self._use_ent:
+                ent = doc_text.ent[i]
+                if ent not in self._ent2id:
+                    self._ent2id[ent] = len(self._ent2id)
+                    self._meta_data['id2ent'].append(ent)
+                sentence['ent'].append(self._ent2id[ent])
+
+        return sentence
+
+    def _update_to_char(self, sentence):
         """
         update char2id
         :param sentence: raw sentence
         """
         for ch in sentence:
-            if ch not in self.__char2id:
-                self.__char2id[ch] = len(self.__char2id)
-                self.__meta_data['id2char'].append(ch)
+            if ch not in self._char2id:
+                self._char2id[ch] = len(self._char2id)
+                self._meta_data['id2char'].append(ch)
 
-    def __handle_glove(self):
+    def _handle_glove(self):
         """
         handle glove embeddings, restore embeddings with dictionary
         :return:
         """
-        logger.debug("read glove from text file %s" % self.__glove_path)
-        with zipfile.ZipFile(self.__glove_path, 'r') as zf:
+        logger.info("read glove from text file %s" % self._glove_path)
+        with zipfile.ZipFile(self._glove_path, 'r') as zf:
             if len(zf.namelist()) != 1:
-                raise ValueError('glove file "%s" not recognized' % self.__glove_path)
+                raise ValueError('glove file "%s" not recognized' % self._glove_path)
 
             glove_name = zf.namelist()[0]
 
@@ -222,49 +293,56 @@ class PreprocessData:
             with zf.open(glove_name) as f:
                 for line in f:
                     line_split = line.decode('utf-8').split(' ')
-                    self.__word2vec[line_split[0]] = [float(x) for x in line_split[1:]]
+                    self._word2vec[line_split[0]] = [float(x) for x in line_split[1:]]
 
                     word_num += 1
                     if word_num % 10000 == 0:
-                        logger.debug('handle word No.%d' % word_num)
+                        logger.info('handle word No.%d' % word_num)
 
-    def __export_squad_hdf5(self):
+    def _export_squad_hdf5(self):
         """
         export squad dataset to hdf5 file
         :return:
         """
-        f = h5py.File(self.__export_squad_path, 'w')
+        f = h5py.File(self._export_squad_path, 'w')
         str_dt = h5py.special_dtype(vlen=str)
 
         # attributes
-        for attr_name in self.__attr:
-            f.attrs[attr_name] = self.__attr[attr_name]
+        for attr_name in self._attr:
+            f.attrs[attr_name] = self._attr[attr_name]
 
         # meta_data
-        id2word = np.array(self.__meta_data['id2word'], dtype=np.str)
-        id2char = np.array(self.__meta_data['id2char'], dtype=np.str)
-        id2vec = np.array(self.__meta_data['id2vec'], dtype=np.float32)
         f_meta_data = f.create_group('meta_data')
+        for key in ['id2word', 'id2char', 'id2pos', 'id2ent']:
+            value = np.array(self._meta_data[key], dtype=np.str)
+            meta_data = f_meta_data.create_dataset(key, value.shape, dtype=str_dt, **self._compress_option)
+            meta_data[...] = value
 
-        meta_data = f_meta_data.create_dataset('id2word', id2word.shape, dtype=str_dt, **self.__compress_option)
-        meta_data[...] = id2word
-
-        meta_data = f_meta_data.create_dataset('id2char', id2char.shape, dtype=str_dt, **self.__compress_option)
-        meta_data[...] = id2char
-
-        meta_data = f_meta_data.create_dataset('id2vec', id2vec.shape, dtype=id2vec.dtype, **self.__compress_option)
+        id2vec = np.array(self._meta_data['id2vec'], dtype=np.float32)
+        meta_data = f_meta_data.create_dataset('id2vec', id2vec.shape, dtype=id2vec.dtype, **self._compress_option)
         meta_data[...] = id2vec
 
         # data
         f_data = f.create_group('data')
-        for key, value in self.__data.items():
+        for key, value in self._data.items():
             data_grp = f_data.create_group(key)
 
             for sub_key, sub_value in value.items():
-                cur_dtype = str_dt if sub_value.dtype.type is np.str_ else sub_value.dtype
-                data = data_grp.create_dataset(sub_key, sub_value.shape, dtype=cur_dtype,
-                                               **self.__compress_option)
-                data[...] = sub_value
+                if isinstance(sub_value, dict):
+                    sub_grp = data_grp.create_group(sub_key)
+                    for subsub_key, subsub_value in sub_value.items():
+                        if len(subsub_value) == 0:
+                            continue
+
+                        cur_dtype = str_dt if subsub_value.dtype.type is np.str_ else subsub_value.dtype
+                        data = sub_grp.create_dataset(subsub_key, subsub_value.shape, dtype=cur_dtype,
+                                                      **self._compress_option)
+                        data[...] = subsub_value
+                else:
+                    cur_dtype = str_dt if sub_value.dtype.type is np.str_ else sub_value.dtype
+                    data = data_grp.create_dataset(sub_key, sub_value.shape, dtype=cur_dtype,
+                                                   **self._compress_option)
+                    data[...] = sub_value
 
         f.flush()
         f.close()
@@ -275,51 +353,72 @@ class PreprocessData:
         :return:
         """
         logger.info('handle glove file...')
-        self.__handle_glove()
+        self._handle_glove()
 
         logger.info('read squad json...')
-        train_context_qas = self.__read_json(self.__train_path)
-        dev_context_qas = self.__read_json(self.__dev_path)
+        train_context_qas = self._read_json(self._train_path)
+        dev_context_qas = self._read_json(self._dev_path)
 
         logger.info('transform word to id...')
-        train_cache_nopad = self.__build_data(train_context_qas, training=True)
-        dev_cache_nopad = self.__build_data(dev_context_qas, training=False)
+        train_cache_nopad = self._build_data(train_context_qas, training=True)
+        dev_cache_nopad = self._build_data(dev_context_qas, training=False)
 
-        self.__attr['train_size'] = len(train_cache_nopad['answer_range'])
-        self.__attr['dev_size'] = len(dev_cache_nopad['answer_range'])
-        self.__attr['word_dict_size'] = len(self.__word2id)
-        self.__attr['char_dict_size'] = len(self.__char2id)
-        self.__attr['embedding_size'] = self.__embedding_size
-        self.__attr['oov_word_num'] = self.__oov_num
+        self._attr['train_size'] = len(train_cache_nopad['answer_range'])
+        self._attr['dev_size'] = len(dev_cache_nopad['answer_range'])
+        self._attr['word_dict_size'] = len(self._word2id)
+        self._attr['char_dict_size'] = len(self._char2id)
+        self._attr['pos_dict_size'] = len(self._pos2id)
+        self._attr['ent_dict_size'] = len(self._ent2id)
+        self._attr['embedding_size'] = self._embedding_size
+        self._attr['oov_word_num'] = self._oov_num
 
         logger.info('padding id vectors...')
-        self.__data['train'] = {
-            'context': pad_sequences(train_cache_nopad['context'],
-                                     maxlen=self.__max_context_token_len,
-                                     padding='post',
-                                     value=self.padding_idx),
-            'question': pad_sequences(train_cache_nopad['question'],
-                                      maxlen=self.__max_question_token_len,
-                                      padding='post',
-                                      value=self.padding_idx),
+        self._data['train'] = {
+            'context': dict2array(train_cache_nopad['context']),
+            'question': dict2array(train_cache_nopad['question']),
             'answer_range': np.array(train_cache_nopad['answer_range']),
-            'samples_id': np.array(train_cache_nopad['samples_id'])}
-        self.__data['dev'] = {
-            'context': pad_sequences(dev_cache_nopad['context'],
-                                     maxlen=self.__max_context_token_len,
-                                     padding='post',
-                                     value=self.padding_idx),
-            'question': pad_sequences(dev_cache_nopad['question'],
-                                      maxlen=self.__max_question_token_len,
-                                      padding='post',
-                                      value=self.padding_idx),
+            'samples_id': np.array(train_cache_nopad['samples_id'])
+        }
+        self._data['dev'] = {
+            'context': dict2array(dev_cache_nopad['context']),
+            'question': dict2array(dev_cache_nopad['question']),
             'answer_range': pad_sequences(dev_cache_nopad['answer_range'],
-                                          maxlen=self.__max_answer_len,
+                                          maxlen=self._max_answer_len,
                                           padding='post',
                                           value=self.answer_padding_idx),
-            'samples_id': np.array(dev_cache_nopad['samples_id'])}
+            'samples_id': np.array(dev_cache_nopad['samples_id'])
+        }
 
         logger.info('export to hdf5 file...')
-        self.__export_squad_hdf5()
+        self._export_squad_hdf5()
 
         logger.info('finished.')
+
+
+def dict2array(data_doc):
+    """
+    transform dict to numpy array
+    :param data_doc: [{'token': [], 'pos': [], 'ent': [], 'em': [], 'em_lemma': [], 'right_space': []]
+    :return:
+    """
+    data = {'token': [], 'pos': [], 'ent': [], 'em': [], 'em_lemma': [], 'right_space': []}
+    max_len = 0
+
+    for ele in data_doc:
+        assert ele.keys() == data.keys()
+
+        if len(ele['token']) > max_len:
+            max_len = len(ele['token'])
+
+        for k in ele.keys():
+            if len(ele[k]) > 0:
+                data[k].append(ele[k])
+
+    for k in data.keys():
+        if len(data[k]) > 0:
+            data[k] = pad_sequences(data[k],
+                                    maxlen=max_len,
+                                    padding='post',
+                                    value=PreprocessData.padding_idx)
+
+    return data

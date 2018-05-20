@@ -52,6 +52,8 @@ def main(config_path, pre_model_path, tar_model_path):
         model = MatchLSTMPlus(dataset_h5_path)
     elif model_choose == 'r-net':
         model = RNet(dataset_h5_path)
+    elif model_choose == 'm-reader':
+        model = MReader(dataset_h5_path)
     else:
         raise ValueError('model "%s" in config file not recoginized' % model_choose)
 

@@ -41,6 +41,8 @@ class MatchLSTMPlus(torch.nn.Module):
         encoder_word_layers = 1
         encoder_char_layers = 1
 
+        add_feature_size = 73
+
         encoder_bidirection = True
         encoder_direction_num = 2 if encoder_bidirection else 1
 
@@ -62,8 +64,10 @@ class MatchLSTMPlus(torch.nn.Module):
                                         num_layers=encoder_char_layers,
                                         bidirectional=encoder_bidirection,
                                         dropout_p=emb_dropout_p)
+
+        encoder_in_size = add_feature_size + word_embedding_size
         self.encoder = MyRNNBase(mode=hidden_mode,
-                                 input_size=word_embedding_size,
+                                 input_size=encoder_in_size,
                                  hidden_size=hidden_size,
                                  num_layers=encoder_word_layers,
                                  bidirectional=encoder_bidirection,
@@ -97,8 +101,12 @@ class MatchLSTMPlus(torch.nn.Module):
                                            enable_layer_norm=enable_layer_norm)
         self.init_ptr_hidden = torch.nn.Linear(match_rnn_out_size, hidden_size)
 
-    def forward(self, context, question, context_char=None, question_char=None):
+    def forward(self, context, question, context_char=None, question_char=None, context_f=None, question_f=None):
         assert context_char is not None and question_char is not None
+
+        # (seq_len, batch, additional_feature_size)
+        context_f = context_f.transpose(0, 1)
+        question_f = question_f.transpose(0, 1)
 
         # word-level embedding: (seq_len, batch, embedding_size)
         context_vec, context_mask = self.embedding.forward(context)
@@ -109,6 +117,8 @@ class MatchLSTMPlus(torch.nn.Module):
         question_emb_char, question_char_mask = self.char_embedding.forward(question_char)
 
         # word-level encode: (seq_len, batch, hidden_size)
+        context_vec = torch.cat([context_vec, context_f], dim=-1)
+        question_vec = torch.cat([question_vec, question_f], dim=-1)
         context_encode, _ = self.encoder.forward(context_vec, context_mask)
         question_encode, _ = self.encoder.forward(question_vec, question_mask)
 

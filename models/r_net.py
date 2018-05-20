@@ -112,7 +112,7 @@ class RNet(torch.nn.Module):
 
         self.init_ptr_hidden = AttentionPooling(encode_out_size, hidden_size)
 
-    def forward(self, context, question, context_char=None, question_char=None):
+    def forward(self, context, question, context_char=None, question_char=None, context_f=None, question_f=None):
         assert context_char is not None and question_char is not None
 
         # word-level embedding: (seq_len, batch, embedding_size)
