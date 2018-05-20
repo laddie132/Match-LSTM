@@ -29,7 +29,7 @@ Evaluate results on SQuAD dev set:
 
 model|em|f1
 ---|---|---|
-Match-LSTM+ (our version)|**69.3**|**78.8**
+Match-LSTM+ (our version)|**70.2**|**79.2**
 Match-LSTM (paper)|64.1|73.9
 R-NET-45 (our version)|64.2|73.6
 R-NET (paper)|72.3|80.6
@@ -37,7 +37,6 @@ M-Reader (our version)|**70.4**|**79.6**
 M-Reader+RL (paper)|72.1|81.6
 
 > 'R-NET-45' refers to R-NET with hidden size of 45
-
 
 ## Usage
 
