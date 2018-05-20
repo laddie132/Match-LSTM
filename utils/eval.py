@@ -5,7 +5,7 @@ __author__ = 'han'
 
 import torch
 import logging
-from dataset.preprocess_squad import PreprocessData
+from dataset.preprocess_squad import PreprocessSquad
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +112,7 @@ def evaluate_f1(context_tokens, y_pred, y_true):
     all_f1 = []
     for i in range(candidate_answer_size):
         tmp_true = y_true[(i * 2):(i * 2 + 2)]
-        if tmp_true[0] == PreprocessData.answer_padding_idx:
+        if tmp_true[0] == PreprocessSquad.answer_padding_idx:
             continue
 
         true_tokens = set(context_tokens[tmp_true[0]:tmp_true[1]+1])

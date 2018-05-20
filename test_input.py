@@ -10,13 +10,10 @@ import spacy
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from dataset.h5_dataset import Dataset
 from models import *
-from dataset.squad_dataset import SquadDataset
-from dataset.preprocess_data import DocText
+from dataset import Dataset, DocTextEn, DocTextCh
 from utils.load_config import init_logging, read_config
 from utils.functions import to_long_tensor, count_parameters, draw_heatmap_sea
-from dataset.preprocess_cmrc import hanlp_segment
 
 init_logging()
 logger = logging.getLogger(__name__)
@@ -97,8 +94,8 @@ def main():
     # preprocess
     if global_config['test']['is_english']:
         nlp = spacy.load('en')
-        context_doc = DocText(nlp, context, global_config['preprocess'])
-        question_doc = DocText(nlp, question, global_config['preprocess'])
+        context_doc = DocTextEn(nlp, context, global_config['preprocess'])
+        question_doc = DocTextEn(nlp, question, global_config['preprocess'])
 
         link_char = ' '
     else:

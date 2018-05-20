@@ -8,7 +8,7 @@ import h5py
 import torch
 import torch.nn.functional as F
 import numpy as np
-from dataset.preprocess_squad import PreprocessData
+from dataset.preprocess_squad import PreprocessSquad
 from utils.functions import masked_softmax, compute_mask, masked_flip
 
 

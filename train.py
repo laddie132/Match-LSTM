@@ -8,7 +8,7 @@ import torch
 import logging
 import argparse
 import torch.optim as optim
-from dataset.h5_dataset import Dataset
+from dataset import Dataset
 from models import *
 from models.loss import MyNLLLoss, RLLoss
 from utils.load_config import init_logging, read_config

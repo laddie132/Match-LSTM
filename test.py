@@ -8,7 +8,7 @@ import os
 import torch
 import logging
 import argparse
-from dataset.h5_dataset import Dataset
+from dataset import Dataset
 from models import *
 from utils.load_config import init_logging, read_config
 from models.loss import MyNLLLoss

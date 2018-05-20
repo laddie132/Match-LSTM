@@ -11,7 +11,7 @@ import torch.utils.data
 from torch.utils.data.sampler import Sampler, SequentialSampler
 import logging
 import pandas as pd
-from dataset.preprocess_squad import PreprocessData
+from .preprocess import Preprocess
 from utils.functions import *
 
 logger = logging.getLogger(__name__)
@@ -239,7 +239,7 @@ class Dataset:
         batch_wordid = batch_wordid.numpy()
         batch_word = [self.sentence_id2word(x) for x in batch_wordid]
 
-        batch_length = [[len(x) if x != PreprocessData.padding else 0 for x in s] for s in batch_word]
+        batch_length = [[len(x) if x != Preprocess.padding else 0 for x in s] for s in batch_word]
         batch_max_len = np.max(batch_length)
 
         batch_char = list(map(lambda x: self.sentence_char2id(x, max_len=batch_max_len), batch_word))
@@ -299,7 +299,7 @@ class Dataset:
         return list(w)
 
     def word_char2id(self, w):
-        if w == PreprocessData.padding:  # not actual word
+        if w == Preprocess.padding:  # not actual word
             return np.ones(1, )  # make sure word length>0 and right encoding, here any none-zero value not effect
 
         w_id = map(lambda ch: self._char2id[ch], w)
@@ -414,10 +414,10 @@ class CQA_Dataset(torch.utils.data.Dataset):
         return self.answer_range.shape[0]
 
     def get_lengths(self):
-        ct_mask = self.context['token'].__ne__(PreprocessData.padding_idx)
+        ct_mask = self.context['token'].__ne__(Preprocess.padding_idx)
         ct_lengths = ct_mask.sum(1)
 
-        qt_mask = self.question['token'].__ne__(PreprocessData.padding_idx)
+        qt_mask = self.question['token'].__ne__(Preprocess.padding_idx)
         qt_lengths = qt_mask.sum(1)
 
         lengths = np.stack([ct_lengths, qt_lengths])
@@ -435,14 +435,14 @@ class CQA_Dataset(torch.utils.data.Dataset):
             if self.config['use_pos']:
                 features['pos'] = torch.zeros((tmp_seq_len, len(self.feature_dict['id2pos'])), dtype=torch.float)
                 for i, ele in enumerate(data[k]['pos'][index]):
-                    if ele == PreprocessData.padding_idx:
+                    if ele == Preprocess.padding_idx:
                         break
                     features['pos'][i, ele] = 1
 
             if self.config['use_ent']:
                 features['ent'] = torch.zeros((tmp_seq_len, len(self.feature_dict['id2ent'])), dtype=torch.float)
                 for i, ele in enumerate(data[k]['ent'][index]):
-                    if ele == PreprocessData.padding_idx:
+                    if ele == Preprocess.padding_idx:
                         break
                     features['ent'][i, ele] = 1
 

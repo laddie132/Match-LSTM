@@ -7,8 +7,8 @@ import logging
 import argparse
 from train import train
 from test import test
+from dataset import PreprocessCMRC
 from utils.load_config import init_logging, read_config
-from dataset.preprocess_cmrc import PreprocessCMRC
 
 init_logging()
 logger = logging.getLogger(__name__)

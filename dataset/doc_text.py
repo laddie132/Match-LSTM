@@ -3,6 +3,7 @@
 import re
 import logging
 import torch
+from pyhanlp import *
 import numpy as np
 
 
@@ -13,9 +14,7 @@ class DocText:
     """
     define one sample text, like one context or one question
     """
-
-    def __init__(self, nlp, text, config):
-        doc = nlp(text)
+    def __init__(self, config):
         self.config = config
         self.token = []
         self.lemma = []
@@ -23,32 +22,7 @@ class DocText:
         self.ent = []
         self.em = []
         self.em_lemma = []
-
-        self.right_space = []   # record whether the right side of every token is a white space
-
-        for t in doc:
-            if t.is_space:
-                continue
-
-            self.token.append(t.text)
-            end_idx = t.idx + len(t.text)
-            if end_idx < len(text) and text[end_idx] in Space.WHITE_SPACE:
-                self.right_space.append(1)
-            else:
-                self.right_space.append(0)
-
-            if config['use_em_lemma']:
-                self.lemma.append(t.lemma_)
-                self.em_lemma.append(0)
-
-            if config['use_pos']:
-                self.pos.append(t.tag_)  # also be t.pos_
-
-            if config['use_ent']:
-                self.ent.append(t.ent_type_)
-
-            if config['use_em']:
-                self.em.append(0)
+        self.right_space = []
 
     def __len__(self):
         return len(self.token)
@@ -119,6 +93,64 @@ class DocText:
         rtn_sen_id = torch.tensor(sen_id, dtype=torch.long)
 
         return rtn_sen_id, rtn_features
+
+
+class DocTextEn(DocText):
+    """
+    for english doctext
+    """
+
+    def __init__(self, nlp, text, config):
+        super(DocTextEn, self).__init__(config)
+        doc = nlp(text)
+
+        for t in doc:
+            if t.is_space:
+                continue
+
+            self.token.append(t.text)
+            end_idx = t.idx + len(t.text)
+            if end_idx < len(text) and text[end_idx] in Space.WHITE_SPACE:
+                self.right_space.append(1)
+            else:
+                self.right_space.append(0)
+
+            if config['use_em_lemma']:
+                self.lemma.append(t.lemma_)
+                self.em_lemma.append(0)
+
+            if config['use_pos']:
+                self.pos.append(t.tag_)  # also be t.pos_
+
+            if config['use_ent']:
+                self.ent.append(t.ent_type_)
+
+            if config['use_em']:
+                self.em.append(0)
+
+
+class DocTextCh(DocText):
+    """
+    for chinese doctext
+    """
+    def __init__(self, text, config):
+        super(DocTextCh, self).__init__(config)
+
+        for term in HanLP.segment(text):
+            cur_token = Space.remove_white_space(term.word)
+            if len(cur_token) == 0:
+                continue
+
+            self.token.append(cur_token)
+
+            if config['use_pos']:
+                self.pos.append(term.nature)
+
+            if config['use_ent']:
+                pass
+
+            if config['use_em']:
+                self.em.append(0)
 
 
 class Space:

@@ -6,7 +6,7 @@ __author__ = 'han'
 import torch
 import torch.nn as nn
 from models.layers import *
-from dataset.preprocess_squad import PreprocessData
+from dataset.preprocess_squad import PreprocessSquad
 from utils.functions import answer_search, multi_scale_ptr
 
 

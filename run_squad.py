@@ -7,8 +7,8 @@ import logging
 import argparse
 from train import train
 from test import test
+from dataset import PreprocessSquad
 from utils.load_config import init_logging, read_config
-from dataset.preprocess_squad import PreprocessData
 
 init_logging()
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ def preprocess(config_path):
     global_config = read_config(config_path)
 
     logger.info('preprocess data...')
-    pdata = PreprocessData(global_config)
+    pdata = PreprocessSquad(global_config)
     pdata.run()
 
 
