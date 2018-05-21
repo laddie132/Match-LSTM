@@ -217,7 +217,7 @@ class Preprocess:
         :return:
         """
         logger.info('handle embeddings file...')
-        # self._handle_emb()
+        self._handle_emb()
 
         logger.info('read dataset json...')
         train_context_qas = self._read_json(self._train_path)

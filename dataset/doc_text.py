@@ -4,7 +4,6 @@ import re
 import logging
 import torch
 from pyhanlp import *
-import numpy as np
 
 
 logger = logging.getLogger(__name__)
@@ -144,10 +143,7 @@ class DocTextCh(DocText):
             self.token.append(cur_token)
 
             if config['use_pos']:
-                self.pos.append(term.nature)
-
-            if config['use_ent']:
-                pass
+                self.pos.append(str(term.nature))
 
             if config['use_em']:
                 self.em.append(0)

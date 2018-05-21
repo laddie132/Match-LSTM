@@ -30,7 +30,7 @@ def main():
 
     torch.set_grad_enabled(False)  # make sure all tensors below have require_grad=False
 
-    logger.info('reading squad dataset...')
+    logger.info('reading dataset...')
     dataset = Dataset(global_config)
 
     logger.info('constructing model...')
@@ -92,15 +92,16 @@ def main():
     answer = answer2[0]
 
     # preprocess
+    preprocess_config = global_config['preprocess']
     if global_config['test']['is_english']:
         nlp = spacy.load('en')
-        context_doc = DocTextEn(nlp, context, global_config['preprocess'])
-        question_doc = DocTextEn(nlp, question, global_config['preprocess'])
+        context_doc = DocTextEn(nlp, context, preprocess_config)
+        question_doc = DocTextEn(nlp, question, preprocess_config)
 
         link_char = ' '
     else:
-        context_token = hanlp_segment(context)
-        question_token = hanlp_segment(question)
+        context_doc = DocTextCh(context, preprocess_config)
+        question_doc = DocTextCh(question, preprocess_config)
 
         link_char = ''
         # mpl.rcParams['font.sans-serif'] = ['Microsoft YaHei']
@@ -112,8 +113,11 @@ def main():
     context_token = context_doc.token
     question_token = question_doc.token
 
-    context_id_char = to_long_tensor(dataset.sentence_char2id(context_token))
-    question_id_char = to_long_tensor(dataset.sentence_char2id(question_token))
+    context_id_char = None
+    question_id_char = None
+    if preprocess_config['use_char']:
+        context_id_char = to_long_tensor(dataset.sentence_char2id(context_token))
+        question_id_char = to_long_tensor(dataset.sentence_char2id(question_token))
 
     context_id, context_f = context_doc.to_id(dataset.meta_data)
     question_id, question_f = question_doc.to_id(dataset.meta_data)
@@ -121,6 +125,7 @@ def main():
     bat_input = [context_id, question_id, context_id_char, question_id_char, context_f, question_f]
     bat_input = [x.unsqueeze(0) if x is not None else x for x in bat_input]
 
+    # predict
     out_ans_prop, out_ans_range, vis_param = model.forward(*bat_input)
     out_ans_range = out_ans_range.numpy()
 
@@ -154,26 +159,6 @@ def main():
                      answer=answer,
                      save_path='cmrc_data/test-right.png',
                      bottom=0.2)
-
-    enable_self_match = False
-    if enable_self_match:
-        x_self_left = vis_param['self']['left']['alpha'][0, s:e, s:e].numpy()
-        x_self_right = vis_param['self']['right']['alpha'][0, s:e, s:e].numpy()
-
-        draw_heatmap_sea(x_self_left,
-                         xlabels=context_token[s:e],
-                         ylabels=context_token[s:e],
-                         answer=answer,
-                         save_path='cmrc_data/test-self-left.png',
-                         inches=(11, 11),
-                         bottom=0.2)
-        draw_heatmap_sea(x_self_right,
-                         xlabels=context_token[s:e],
-                         ylabels=context_token[s:e],
-                         answer=answer,
-                         save_path='cmrc_data/test-self-right.png',
-                         inches=(11, 11),
-                         bottom=0.2)
     # plt.show()
 
 

@@ -19,6 +19,7 @@ encoder:
   # word-level
   word_layers: 1
   word_embedding_size: 300
+  add_features: 110
 
   # other
   bidirection: True
