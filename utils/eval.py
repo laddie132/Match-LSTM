@@ -45,23 +45,18 @@ def eval_on_model(model, criterion, batch_data, epoch, device):
         sum_loss += batch_loss.item() * tmp_size
 
         # calculate the mean em and f1 score
-        for i in range(tmp_size):
-            if evaluate_em(tmp_ans_range[i].cpu().numpy(), bat_answer_range[i].cpu().numpy()):
-                num_em += 1
-            score_f1 += evaluate_f1(bat_context[i].cpu().numpy(),
-                                    tmp_ans_range[i].cpu().numpy(),
-                                    bat_answer_range[i].cpu().numpy())
+        bat_em = evaluate_em(tmp_ans_range, bat_answer_range)
+        num_em += bat_em.sum().item()
+
+        bat_f1 = evaluate_f1(tmp_ans_range, bat_answer_range)
+        score_f1 += bat_f1.sum().item()
+
         if epoch is None:
             logger.info('test: batch=%d/%d, cur_score_em=%.2f, cur_score_f1=%.2f, batch_loss=%.5f' %
-                        (bnum, batch_cnt, num_em * 1. / dev_data_size, score_f1 / dev_data_size, batch_loss))
+                        (bnum, batch_cnt, num_em*100.0 / dev_data_size, score_f1*100.0 / dev_data_size, batch_loss))
         else:
             logger.info('epoch=%d, batch=%d/%d, cur_score_em=%.2f, cur_score_f1=%.2f, batch_loss=%.5f' %
-                        (epoch, bnum, batch_cnt, num_em * 1. / dev_data_size, score_f1 / dev_data_size, batch_loss))
-
-        # manual release memory, todo: really effect?
-        del bat_context, bat_answer_range, batch, batch_input
-        del tmp_ans_prop, tmp_ans_range, batch_loss
-        # torch.cuda.empty_cache()
+                        (epoch, bnum, batch_cnt, num_em*100.0 / dev_data_size, score_f1*100.0 / dev_data_size, batch_loss))
 
     score_em = num_em * 100.0 / dev_data_size
     score_f1 = score_f1 * 100.0 / dev_data_size
@@ -80,50 +75,66 @@ def eval_on_model(model, criterion, batch_data, epoch, device):
 def evaluate_em(y_pred, y_true):
     """
     exact match score
-    :param y_pred: (answer_len,)
-    :param y_true: (condidate_answer_len,)
-    :return: bool
+    :param y_pred: (batch, answer_len)
+    :param y_true: (batch, condidate_answer_len)
+    :return:
     """
-    answer_len = 2
-    candidate_answer_size = int(len(y_true)/answer_len)
+    assert y_pred.shape[1] == 2
 
+    batch_size, condidate_answer_len = y_true.shape
+    candidate_answer_size = int(condidate_answer_len/2)
+
+    candidate_em = []
     for i in range(candidate_answer_size):
-        if (y_true[(i * 2):(i * 2 + 2)] == y_pred).all():
-            return True
+        cur_em = y_true[:, (i * 2):(i * 2 + 2)] == y_pred
+        cur_em = cur_em[:, 0] & cur_em[:, 1]
+        candidate_em.append(cur_em.long())
 
-    return False
+    candidate_em = torch.stack(candidate_em, dim=-1)    # (batch, answer_num)
+    batch_em, _ = torch.max(candidate_em, dim=-1)   # (batch,)
+
+    return batch_em
 
 
-def evaluate_f1(context_tokens, y_pred, y_true):
+def evaluate_f1(y_pred, y_true):
     """
     treat answer as bag of tokens, calculate F1 score
     :param context_tokens: context with word tokens
-    :param y_pred: (answer_len,)
-    :param y_true: (condidate_answer_len,)
-    :return: float
+    :param y_pred: (batch, answer_len)
+    :param y_true: (batch, condidate_answer_len)
+    :return:
     """
-    answer_len = 2
-    candidate_answer_size = int(len(y_true) / answer_len)
+    assert y_pred.shape[1] == 2
 
-    pred_tokens = set(context_tokens[y_pred[0]:y_pred[1]+1])
-    if len(pred_tokens) == 0:
-        return 0
+    batch_size, condidate_answer_len = y_true.shape
+    candidate_answer_size = int(condidate_answer_len / 2)
 
-    all_f1 = []
+    pred_len = (y_pred[:, 1] - y_pred[:, 0] + 1).type(torch.float)
+    eps = 1e-6
+
+    candidate_f1 = []
     for i in range(candidate_answer_size):
-        tmp_true = y_true[(i * 2):(i * 2 + 2)]
-        if tmp_true[0] == PreprocessSquad.answer_padding_idx:
-            continue
+        cur_true = y_true[:, (i * 2):(i * 2 + 2)]
 
-        true_tokens = set(context_tokens[tmp_true[0]:tmp_true[1]+1])
-        same_tokens = pred_tokens.intersection(true_tokens)
+        same_left = torch.stack([cur_true[:, 0], y_pred[:, 0]], dim=1)
+        same_left, _ = torch.max(same_left, dim=1)
 
-        precision = len(same_tokens) * 1. / len(pred_tokens)
-        recall = len(same_tokens) * 1. / len(true_tokens)
+        same_right = torch.stack([cur_true[:, 1], y_pred[:, 1]], dim=1)
+        same_right, _ = torch.min(same_right, dim=1)
 
-        f1 = 0
-        if precision + recall > 0:
-            f1 = 2 * precision * recall / (precision + recall)
-        all_f1.append(f1)
+        same_len = same_right - same_left + 1  # (batch_size,)
+        same_len = torch.stack([same_len, torch.zeros_like(same_len)], dim=1)
+        same_len, _ = torch.max(same_len, dim=1)
 
-    return max(all_f1)
+        same_len = same_len.type(torch.float)
+        true_len = (cur_true[:, 1] - cur_true[:, 0] + 1).type(torch.float)
+
+        pre = same_len / (pred_len + eps)
+        rec = same_len / (true_len + eps)
+
+        f1 = 2 * pre * rec / (pre + rec + eps)
+        candidate_f1.append(f1)
+    candidate_f1 = torch.stack(candidate_f1, dim=-1)    # (batch, answer_num)
+    bat_f1, _ = torch.max(candidate_f1, dim=-1)
+
+    return bat_f1

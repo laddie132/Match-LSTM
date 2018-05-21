@@ -35,7 +35,7 @@ def test(config_path, out_path):
 
     torch.set_grad_enabled(False)  # make sure all tensors below have require_grad=False,
 
-    logger.info('reading squad dataset...')
+    logger.info('reading dataset...')
     dataset = Dataset(global_config)
 
     logger.info('constructing model...')
@@ -138,11 +138,6 @@ def predict_on_model(model, batch_data, device, id_to_word_func, right_space, is
             i += 1
         cnt += i
         logging.info('batch=%d/%d' % (bnum, batch_cnt))
-
-        # manual release memory, todo: really effect?
-        del bat_context, bat_answer_range, batch, batch_input
-        del tmp_ans_range
-        # torch.cuda.empty_cache()
 
     return answer
 

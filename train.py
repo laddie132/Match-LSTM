@@ -34,7 +34,7 @@ def train(config_path):
     elif not torch.cuda.is_available() and enable_cuda:
         raise ValueError("CUDA is not abaliable, please unable CUDA in config file")
 
-    logger.info('reading squad dataset...')
+    logger.info('reading dataset...')
     dataset = Dataset(global_config)
 
     logger.info('constructing model...')
@@ -173,10 +173,6 @@ def train_on_model(model, criterion, optimizer, batch_data, epoch, clip_grad_max
         sum_loss += batch_loss * bat_answer_range.shape[0]
 
         logger.info('epoch=%d, batch=%d/%d, loss=%.5f' % (epoch, i, batch_cnt, batch_loss))
-
-        # manual release memory, todo: really effect?
-        del batch, ans_range_prop, loss
-        # torch.cuda.empty_cache()
 
     return sum_loss
 
