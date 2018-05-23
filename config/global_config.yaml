@@ -37,4 +37,3 @@ train:
 test:
   batch_size: 32
   enable_cuda: True
-  is_english: True # judge what character two words split with, ' ' for english, '' for chinese

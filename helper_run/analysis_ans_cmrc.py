@@ -5,6 +5,7 @@
 
 import os
 import sys
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 from collections import Counter
 import string
@@ -15,9 +16,11 @@ import seaborn as sns
 import pandas as pd
 import numpy as np
 import nltk
+import jieba
 
 sys.path.append(os.getcwd())
 sns.set()
+mpl.rcParams['font.sans-serif'] = ['SimHei']
 
 
 # split Chinese with English
@@ -146,25 +149,25 @@ def evaluate_with_wrong(ground_truth_file, prediction_file):
 
 
 def ana_question_type_f1(all_ans):
-    qtype_f1 = {'What': 0,
-                'Who': 0,
-                'How': 0,
-                'When': 0,
-                'Which': 0,
-                'Where': 0,
-                'Why': 0,
-                'Other': 0}
-    qtype_cnt = {'What': 0,
-                 'Who': 0,
-                 'How': 0,
-                 'When': 0,
-                 'Which': 0,
-                 'Where': 0,
-                 'Why': 0,
-                 'Other': 0}
+    qtype_f1 = {'是什么': 0,
+                '谁': 0,
+                '怎么': 0,
+                '什么时候': 0,
+                '哪一个': 0,
+                '哪里': 0,
+                '为什么': 0,
+                '其他': 0}
+    qtype_cnt = {'是什么': 0,
+                 '谁': 0,
+                 '怎么': 0,
+                 '什么时候': 0,
+                 '哪一个': 0,
+                 '哪里': 0,
+                 '为什么': 0,
+                 '其他': 0}
 
     for ele in all_ans:
-        cur_type = 'Other'
+        cur_type = '其他'
         for t in qtype_f1.keys():
             if t in ele['question'] or t.lower() in ele['question']:
                 cur_type = t
@@ -174,11 +177,12 @@ def ana_question_type_f1(all_ans):
             qtype_cnt[cur_type] += 1
             qtype_f1[cur_type] += ele['f1']
         else:
-            qtype_cnt['Other'] += 1
-            qtype_f1['Other'] += ele['f1']
+            qtype_cnt['其他'] += 1
+            qtype_f1['其他'] += ele['f1']
 
+    eps = 1e-6
     for key in qtype_f1.keys():
-        qtype_f1[key] = qtype_f1[key] * 1.0 / qtype_cnt[key]
+        qtype_f1[key] = qtype_f1[key] * 1.0 / (qtype_cnt[key] + eps)
 
     tmp_data = np.array([list(qtype_f1.values()), list(qtype_cnt.values())]).transpose()
     qtype_df = pd.DataFrame(data=tmp_data, index=qtype_f1.keys(), columns=['f1', 'cnt'])
@@ -204,8 +208,8 @@ def ana_length_f1(all_ans):
     ans_len_cnt = {}
 
     for ele in all_ans:
-        tmp_ct_len = len(ele['context'].split())
-        tmp_ans_len = min([len(x.split()) for x in ele['true_answer']])
+        tmp_ct_len = len(list(jieba.cut(ele['context'])))
+        tmp_ans_len = min([len(list(jieba.cut(str(x)))) for x in ele['true_answer']])
 
         if tmp_ct_len not in ct_len_f1:
             ct_len_f1[tmp_ct_len] = 0
@@ -243,7 +247,7 @@ def ana_length_f1(all_ans):
     plt.xlabel('passage length')
 
     # count, f1 for answer length
-    max_length = 9
+    max_length = 18
     max_f1 = ans_len_df[ans_len_df['length'] >= max_length]['f1'].mean()
     max_cnt = ans_len_df[ans_len_df['length'] >= max_length]['cnt'].sum()
 

@@ -48,7 +48,7 @@ class PreprocessCMRC(Preprocess):
 
         # every context
         for question_grp in contexts_qas:
-            cur_context = Space.remove_white_space(question_grp['context_text'])
+            cur_context = question_grp['context_text']
             cur_qas = question_grp['qas']
 
             cur_context_doc = DocTextCh(cur_context, self.preprocess_config)
@@ -62,7 +62,7 @@ class PreprocessCMRC(Preprocess):
 
             # every question-answer
             for qa in cur_qas:
-                cur_question = Space.remove_white_space(qa['query_text'])
+                cur_question = qa['query_text']
 
                 if self._use_char:
                     self._update_to_char(cur_question)
@@ -93,7 +93,7 @@ class PreprocessCMRC(Preprocess):
                 for idx, cur_ans in enumerate(cur_answers):
                     cur_ans = Space.remove_white_space(str(cur_ans))  # it has some numbers
                     try:
-                        char_pos_s = cur_context.index(cur_ans)
+                        char_pos_s = Space.remove_white_space(cur_context).index(cur_ans)
                     except ValueError:
                         if sum(cur_ans_range_ids) == self.answer_padding_idx * len(cur_answers) * 2:
                             logger.error('Answer not in context' +

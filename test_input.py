@@ -22,7 +22,10 @@ logger = logging.getLogger(__name__)
 def main():
     logger.info('------------MODEL TEST INPUT--------------')
     logger.info('loading config file...')
+
+    # manual set
     global_config = read_config('config/CMRC.yaml')
+    is_english = False
 
     # set random seed
     seed = global_config['global']['random_seed']
@@ -62,7 +65,7 @@ def main():
     weight = torch.load(model_weight_path, map_location=lambda storage, loc: storage)
     model.load_state_dict(weight, strict=False)
 
-    if global_config['test']['is_english']:
+    if is_english:
         context = "In 1870, Tesla moved to Karlovac, to attend school at the Higher Real Gymnasium, where he was " \
                  "profoundly influenced by a math teacher Martin Sekuli\u0107.:32 The classes were held in German, " \
                  "as it was a school within the Austro-Hungarian Military Frontier. Tesla was able to perform integral " \
@@ -93,7 +96,7 @@ def main():
 
     # preprocess
     preprocess_config = global_config['preprocess']
-    if global_config['test']['is_english']:
+    if is_english:
         nlp = spacy.load('en')
         context_doc = DocTextEn(nlp, context, preprocess_config)
         question_doc = DocTextEn(nlp, question, preprocess_config)

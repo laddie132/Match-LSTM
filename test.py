@@ -73,7 +73,6 @@ def test(config_path, out_path):
     logger.info('forwarding...')
 
     batch_size = global_config['test']['batch_size']
-    is_english = global_config['test']['is_english']
     num_workers = global_config['global']['num_data_workers']
 
     batch_dev_data = dataset.get_dataloader_dev(batch_size, num_workers)
@@ -93,8 +92,7 @@ def test(config_path, out_path):
                                        batch_data=batch_dev_data,
                                        device=device,
                                        id_to_word_func=dataset.sentence_id2word,
-                                       right_space=context_right_space,
-                                       is_english=is_english)
+                                       right_space=context_right_space)
         samples_id = dataset.get_all_samples_id_dev()
         ans_with_id = dict(zip(samples_id, predict_ans))
 
@@ -105,7 +103,7 @@ def test(config_path, out_path):
     logging.info('finished.')
 
 
-def predict_on_model(model, batch_data, device, id_to_word_func, right_space, is_english):
+def predict_on_model(model, batch_data, device, id_to_word_func, right_space):
     batch_cnt = len(batch_data)
     answer = []
 
@@ -127,12 +125,12 @@ def predict_on_model(model, batch_data, device, id_to_word_func, right_space, is
         for c, a in tmp_context_ans:
             cur_no = cnt + i
             tmp_ans = id_to_word_func(c[a[0]:(a[1] + 1)])
-            cur_space = right_space[cur_no][a[0]:(a[1]+1)]
+            cur_space = right_space[cur_no][a[0]:(a[1] + 1)]
 
             cur_ans = ''
             for j, word in enumerate(tmp_ans):
                 cur_ans += word
-                if is_english and cur_space[j]:
+                if cur_space[j]:
                     cur_ans += ' '
             answer.append(cur_ans.strip())
             i += 1

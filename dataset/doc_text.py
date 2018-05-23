@@ -141,6 +141,12 @@ class DocTextCh(DocText):
                 continue
 
             self.token.append(cur_token)
+            end_idx = term.offset + len(cur_token)
+            if end_idx < len(text) and text[end_idx] in Space.WHITE_SPACE:
+                print(text[term.offset:end_idx+5])
+                self.right_space.append(1)
+            else:
+                self.right_space.append(0)
 
             if config['use_pos']:
                 self.pos.append(str(term.nature))
