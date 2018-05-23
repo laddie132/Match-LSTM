@@ -8,6 +8,11 @@ from pyhanlp import *
 
 logger = logging.getLogger(__name__)
 
+NLPTokenizer = JClass('com.hankcs.hanlp.tokenizer.NLPTokenizer')
+segment = HanLP.newSegment()\
+    .enableOrganizationRecognize(True)\
+    .enablePlaceRecognize(True)
+
 
 class DocText:
     """
@@ -135,24 +140,26 @@ class DocTextCh(DocText):
     def __init__(self, text, config):
         super(DocTextCh, self).__init__(config)
 
-        for term in HanLP.segment(text):
-            cur_token = Space.remove_white_space(term.word)
-            if len(cur_token) == 0:
-                continue
+        text_seg = text.split() # split with ' ', make sure right english segment
+        for sub_text in text_seg:
+            seg_text = HanLP.segment(sub_text)
+            for i, term in enumerate(seg_text):
+                cur_token = Space.remove_white_space(term.word)
+                if len(cur_token) == 0:
+                    continue
 
-            self.token.append(cur_token)
-            end_idx = term.offset + len(cur_token)
-            if end_idx < len(text) and text[end_idx] in Space.WHITE_SPACE:
-                print(text[term.offset:end_idx+5])
-                self.right_space.append(1)
-            else:
-                self.right_space.append(0)
+                self.token.append(cur_token)
 
-            if config['use_pos']:
-                self.pos.append(str(term.nature))
+                if i == len(seg_text) - 1:
+                    self.right_space.append(1)
+                else:
+                    self.right_space.append(0)
 
-            if config['use_em']:
-                self.em.append(0)
+                if config['use_pos']:
+                    self.pos.append(str(term.nature))
+
+                if config['use_em']:
+                    self.em.append(0)
 
 
 class Space:

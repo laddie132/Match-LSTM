@@ -129,7 +129,7 @@ def evaluate_with_wrong(ground_truth_file, prediction_file):
                 skip_count += 1
                 continue
 
-            prediction = str(prediction_file[query_id]).replace(' ', '')
+            prediction = str(prediction_file[query_id])
             tmp_f1 = calc_f1_score(answers, prediction)
             f1 += tmp_f1
             tmp_em = calc_em_score(answers, prediction)
