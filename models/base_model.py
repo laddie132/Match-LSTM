@@ -6,7 +6,6 @@ __author__ = 'han'
 import torch
 import torch.nn as nn
 from models.layers import *
-from dataset.preprocess_data import PreprocessData
 from utils.functions import answer_search, multi_scale_ptr
 
 
@@ -47,6 +46,8 @@ class BaseModel(torch.nn.Module):
         char_cnn_filter_size = model_config['encoder']['char_cnn_filter_size']
         char_cnn_filter_num = model_config['encoder']['char_cnn_filter_num']
         self.enable_char = model_config['encoder']['enable_char']
+        add_features = model_config['encoder']['add_features']
+        self.enable_features = True if add_features > 0 else False
 
         # when mix-encode, use r-net methods, that concat char-encoding and word-embedding to represent sequence
         self.mix_encode = model_config['encoder']['mix_encode']
@@ -76,7 +77,7 @@ class BaseModel(torch.nn.Module):
 
         # construct model
         self.embedding = GloveEmbedding(dataset_h5_path=dataset_h5_path)
-        encode_in_size = word_embedding_size
+        encode_in_size = word_embedding_size + add_features
 
         if self.enable_char:
             self.char_embedding = CharEmbedding(dataset_h5_path=dataset_h5_path,
@@ -91,7 +92,7 @@ class BaseModel(torch.nn.Module):
                                                 dropout_p=emb_dropout_p)
             elif char_type == 'CNN':
                 self.char_encoder = CharCNNEncoder(emb_size=char_embedding_size,
-                                                   hidden_size=word_embedding_size,
+                                                   hidden_size=hidden_size,
                                                    filters_size=char_cnn_filter_size,
                                                    filters_num=char_cnn_filter_num,
                                                    dropout_p=emb_dropout_p)
@@ -188,9 +189,22 @@ class BaseModel(torch.nn.Module):
         if self.enable_char:
             assert context_char is not None and question_char is not None
 
+        if self.enable_features:
+            assert context_f is not None and question_f is not None
+
         # get embedding: (seq_len, batch, embedding_size)
         context_vec, context_mask = self.embedding.forward(context)
         question_vec, question_mask = self.embedding.forward(question)
+
+        if self.enable_features:
+            assert context_f is not None and question_f is not None
+
+            # (seq_len, batch, additional_feature_size)
+            context_f = context_f.transpose(0, 1)
+            question_f = question_f.transpose(0, 1)
+
+            context_vec = torch.cat([context_vec, context_f], dim=-1)
+            question_vec = torch.cat([question_vec, question_f], dim=-1)
 
         # char-level embedding: (seq_len, batch, char_embedding_size)
         if self.enable_char:
