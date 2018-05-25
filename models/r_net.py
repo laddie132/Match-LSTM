@@ -66,12 +66,12 @@ class RNet(torch.nn.Module):
                                         dropout_p=emb_dropout_p)
         encode_in_size = word_embedding_size + hidden_size * encoder_direction_num
 
-        self.encoder = MyRNNBase(mode=hidden_mode,
-                                 input_size=encode_in_size,
-                                 hidden_size=hidden_size,
-                                 num_layers=encoder_word_layers,
-                                 bidirectional=encoder_bidirection,
-                                 dropout_p=emb_dropout_p)
+        self.encoder = MyStackedRNN(mode=hidden_mode,
+                                    input_size=encode_in_size,
+                                    hidden_size=hidden_size,
+                                    num_layers=encoder_word_layers,
+                                    bidirectional=encoder_bidirection,
+                                    dropout_p=emb_dropout_p)
         encode_out_size = hidden_size * encoder_direction_num
 
         self.match_rnn = MatchRNN(mode=hidden_mode,
@@ -97,7 +97,6 @@ class RNet(torch.nn.Module):
         self.birnn_after_self = MyRNNBase(mode=hidden_mode,
                                           input_size=match_rnn_out_size,
                                           hidden_size=hidden_size,
-                                          num_layers=1,
                                           bidirectional=True,
                                           dropout_p=dropout_p,
                                           enable_layer_norm=enable_layer_norm)

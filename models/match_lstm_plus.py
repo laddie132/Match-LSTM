@@ -38,7 +38,6 @@ class MatchLSTMPlus(torch.nn.Module):
 
         word_embedding_size = 300
         char_embedding_size = 64
-        encoder_word_layers = 1
         encoder_char_layers = 1
 
         add_feature_size = 73
@@ -69,7 +68,6 @@ class MatchLSTMPlus(torch.nn.Module):
         self.encoder = MyRNNBase(mode=hidden_mode,
                                  input_size=encoder_in_size,
                                  hidden_size=hidden_size,
-                                 num_layers=encoder_word_layers,
                                  bidirectional=encoder_bidirection,
                                  dropout_p=emb_dropout_p)
 
@@ -87,7 +85,6 @@ class MatchLSTMPlus(torch.nn.Module):
         self.birnn_after_self = MyRNNBase(mode=hidden_mode,
                                           input_size=match_rnn_out_size,
                                           hidden_size=hidden_size,
-                                          num_layers=1,
                                           bidirectional=True,
                                           dropout_p=dropout_p,
                                           enable_layer_norm=enable_layer_norm)

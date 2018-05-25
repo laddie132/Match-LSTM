@@ -29,7 +29,8 @@ class GloveEmbedding(torch.nn.Module):
         self.dataset_h5_path = dataset_h5_path
         n_embeddings, len_embedding, weights = self.load_glove_hdf5()
 
-        self.embedding_layer = torch.nn.Embedding(num_embeddings=n_embeddings, embedding_dim=len_embedding, _weight=weights)
+        self.embedding_layer = torch.nn.Embedding(num_embeddings=n_embeddings, embedding_dim=len_embedding,
+                                                  _weight=weights)
         self.embedding_layer.weight.requires_grad = False
 
     def load_glove_hdf5(self):
@@ -106,12 +107,12 @@ class CharEncoder(torch.nn.Module):
     def __init__(self, mode, input_size, hidden_size, num_layers, bidirectional, dropout_p):
         super(CharEncoder, self).__init__()
 
-        self.encoder = MyRNNBase(mode=mode,
-                                 input_size=input_size,
-                                 hidden_size=hidden_size,
-                                 num_layers=num_layers,
-                                 bidirectional=bidirectional,
-                                 dropout_p=dropout_p)
+        self.encoder = MyStackedRNN(mode=mode,
+                                    input_size=input_size,
+                                    hidden_size=hidden_size,
+                                    num_layers=num_layers,
+                                    bidirectional=bidirectional,
+                                    dropout_p=dropout_p)
 
     def forward(self, x, char_mask, word_mask):
         batch_size, seq_len, word_len, embedding_size = x.shape
@@ -538,7 +539,7 @@ class UniBoundaryPointer(torch.nn.Module):
                 .squeeze(1)  # (batch, input_size)
 
             if self.enable_layer_norm:
-                context_beta = self.layer_norm(context_beta)    # (batch, input_size)
+                context_beta = self.layer_norm(context_beta)  # (batch, input_size)
 
             hidden = self.hidden_cell.forward(context_beta, hidden)  # (batch, hidden_size), (batch, hidden_size)
 
@@ -562,6 +563,7 @@ class BoundaryPointer(torch.nn.Module):
     Outputs:
         **output** (answer_len, batch, context_len): start and end answer index possibility position in context
     """
+
     def __init__(self, mode, input_size, hidden_size, bidirectional, dropout_p, enable_layer_norm):
         super(BoundaryPointer, self).__init__()
         self.bidirectional = bidirectional
@@ -607,6 +609,7 @@ class MultiHopBdPointer(torch.nn.Module):
     Outputs:
         **output** (answer_len, batch, context_len): start and end answer index possibility position in context
     """
+
     def __init__(self, mode, input_size, hidden_size, num_hops, dropout_p, enable_layer_norm):
         super(MultiHopBdPointer, self).__init__()
         self.hidden_size = hidden_size
@@ -621,7 +624,7 @@ class MultiHopBdPointer(torch.nn.Module):
         beta_last = None
         for i in range(self.num_hops):
             beta, h_0 = self.ptr_rnn.forward(Hr, Hr_mask, h_0)
-            if beta_last is not None and (beta_last == beta).sum().item() == beta.shape[0]:     # beta not changed
+            if beta_last is not None and (beta_last == beta).sum().item() == beta.shape[0]:  # beta not changed
                 break
 
             beta_last = beta
@@ -634,12 +637,13 @@ class MultiHopBdPointer(torch.nn.Module):
 
 class MyRNNBase(torch.nn.Module):
     """
-    RNN with packed sequence and dropout
+    RNN with packed sequence and dropout, only one layer
     Args:
         input_size: The number of expected features in the input x
         hidden_size: The number of features in the hidden state h
         bidirectional: If ``True``, becomes a bidirectional RNN. Default: ``False``
         dropout_p: dropout probability to input data, and also dropout along hidden layers
+        enable_layer_norm: layer normalization
 
     Inputs: input, mask
         - **input** (seq_len, batch, input_size): tensor containing the features
@@ -651,10 +655,9 @@ class MyRNNBase(torch.nn.Module):
           containing the output features `(h_t)` from the last layer of the RNN,
           for each t.
         - **last_state** (batch, hidden_size * num_directions): the final hidden state of rnn
-
     """
 
-    def __init__(self, mode, input_size, hidden_size, num_layers, bidirectional, dropout_p, enable_layer_norm=False):
+    def __init__(self, mode, input_size, hidden_size, bidirectional, dropout_p, enable_layer_norm=False):
         super(MyRNNBase, self).__init__()
         self.mode = mode
         self.enable_layer_norm = enable_layer_norm
@@ -662,14 +665,12 @@ class MyRNNBase(torch.nn.Module):
         if mode == 'LSTM':
             self.hidden = torch.nn.LSTM(input_size=input_size,
                                         hidden_size=hidden_size,
-                                        num_layers=num_layers,
-                                        dropout=dropout_p,
+                                        num_layers=1,
                                         bidirectional=bidirectional)
         elif mode == 'GRU':
             self.hidden = torch.nn.GRU(input_size=input_size,
                                        hidden_size=hidden_size,
-                                       num_layers=num_layers,
-                                       dropout=dropout_p,
+                                       num_layers=1,
                                        bidirectional=bidirectional)
         else:
             raise ValueError('Wrong mode select %s, change to LSTM or GRU' % mode)
@@ -726,6 +727,43 @@ class MyRNNBase(torch.nn.Module):
         return o_unsort, o_last
 
 
+class MyStackedRNN(torch.nn.Module):
+    """
+    RNN with packed sequence and dropout, multi-layers used
+    Args:
+        input_size: The number of expected features in the input x
+        hidden_size: The number of features in the hidden state h
+        num_layers: number of rnn layers
+        bidirectional: If ``True``, becomes a bidirectional RNN. Default: ``False``
+        dropout_p: dropout probability to input data, and also dropout along hidden layers
+        enable_layer_norm: layer normalization
+
+    Inputs: input, mask
+        - **input** (seq_len, batch, input_size): tensor containing the features
+          of the input sequence.
+        - **mask** (batch, seq_len): tensor show whether a padding index for each element in the batch.
+
+    Outputs: output, last_state
+        - **output** (seq_len, batch, hidden_size * num_directions): tensor
+          containing the output features `(h_t)` from the last layer of the RNN,
+          for each t.
+        - **last_state** (batch, hidden_size * num_directions): the final hidden state of rnn
+    """
+
+    def __init__(self, mode, input_size, hidden_size, num_layers, bidirectional, dropout_p, enable_layer_norm=False):
+        super(MyStackedRNN, self).__init__()
+        self.num_layers = num_layers
+        self.rnn_list = torch.nn.ModuleList([MyRNNBase(mode, input_size, hidden_size, bidirectional, dropout_p,
+                                                       enable_layer_norm) for _ in range(num_layers)])
+
+    def forward(self, v, mask):
+        v_last = None
+        for i in range(self.num_layers):
+            v, v_last = self.rnn_list[i].forward(v, mask)
+
+        return v, v_last
+
+
 class AttentionPooling(torch.nn.Module):
     """
     Attention-Pooling for pointer net init hidden state generate.
@@ -761,7 +799,7 @@ class AttentionPooling(torch.nn.Module):
         rq = torch.bmm(alpha.unsqueeze(1), uq.transpose(0, 1)) \
             .squeeze(1)  # (batch, input_size)
 
-        rq_o = F.tanh(self.linear_o(rq))    # (batch, output_size)
+        rq_o = F.tanh(self.linear_o(rq))  # (batch, output_size)
         return rq_o
 
 
@@ -792,7 +830,7 @@ class SelfAttentionGated(torch.nn.Module):
         g_tanh = F.tanh(self.linear_g(x))
         gt = self.linear_t.forward(g_tanh) \
             .squeeze(2) \
-            .transpose(0, 1)    # (batch, seq_len)
+            .transpose(0, 1)  # (batch, seq_len)
 
         gt_prop = masked_softmax(gt, x_mask, dim=1)
         gt_prop = gt_prop.transpose(0, 1).unsqueeze(2)  # (seq_len, batch, 1)
@@ -805,6 +843,7 @@ class SelfGated(torch.nn.Module):
     """
     Self-Gated layer. math: \sigmoid(W*x) * x
     """
+
     def __init__(self, input_size):
         super(SelfGated, self).__init__()
 
@@ -840,8 +879,8 @@ class SeqToSeqAtten(torch.nn.Module):
         h1 = h1.transpose(0, 1)
         h2 = h2.transpose(0, 1)
 
-        alpha = h1.bmm(h2.transpose(1, 2))   # (batch, seq1_len, seq2_len)
-        alpha = masked_softmax(alpha, h2_mask.unsqueeze(1), dim=2)     # (batch, seq1_len, seq2_len)
+        alpha = h1.bmm(h2.transpose(1, 2))  # (batch, seq1_len, seq2_len)
+        alpha = masked_softmax(alpha, h2_mask.unsqueeze(1), dim=2)  # (batch, seq1_len, seq2_len)
 
         alpha_seq2 = alpha.bmm(h2)  # (batch, seq1_len, hidden_size)
         alpha_seq2 = alpha_seq2.transpose(0, 1)
@@ -860,6 +899,7 @@ class SelfSeqAtten(torch.nn.Module):
         - output: (seq_len, batch, hidden_size)
         - alpha: (batch, seq_len, seq_len)
     """
+
     def __init__(self):
         super(SelfSeqAtten, self).__init__()
 
@@ -904,8 +944,8 @@ class SFU(torch.nn.Module):
     def forward(self, input, fusions):
         m = torch.cat((input, fusions), dim=-1)
 
-        r = F.tanh(self.linear_r(m))        # (seq_len, batch, input_size)
-        g = F.sigmoid(self.linear_g(m))     # (seq_len, batch, input_size)
+        r = F.tanh(self.linear_r(m))  # (seq_len, batch, input_size)
+        g = F.sigmoid(self.linear_g(m))  # (seq_len, batch, input_size)
         o = g * r + (1 - g) * input
 
         return o
@@ -930,9 +970,9 @@ class MemPtrNet(torch.nn.Module):
     def __init__(self, input_size, hidden_size, dropout_p):
         super(MemPtrNet, self).__init__()
 
-        self.start_net = ForwardNet(input_size=input_size*3, hidden_size=hidden_size, dropout_p=dropout_p)
+        self.start_net = ForwardNet(input_size=input_size * 3, hidden_size=hidden_size, dropout_p=dropout_p)
         self.start_sfu = SFU(input_size, input_size)
-        self.end_net = ForwardNet(input_size=input_size*3, hidden_size=hidden_size, dropout_p=dropout_p)
+        self.end_net = ForwardNet(input_size=input_size * 3, hidden_size=hidden_size, dropout_p=dropout_p)
         self.end_sfu = SFU(input_size, input_size)
 
         self.dropout = torch.nn.Dropout(dropout_p)
@@ -942,15 +982,15 @@ class MemPtrNet(torch.nn.Module):
 
         # start position
         zs_ep = zs.unsqueeze(0).expand(hc.size())  # (seq_len, batch, input_size)
-        x = torch.cat((hc, zs_ep, hc*zs_ep), dim=-1)    # (seq_len, batch, input_size*3)
-        start_p = self.start_net(x, hc_mask)     # (batch, seq_len)
+        x = torch.cat((hc, zs_ep, hc * zs_ep), dim=-1)  # (seq_len, batch, input_size*3)
+        start_p = self.start_net(x, hc_mask)  # (batch, seq_len)
 
-        us = start_p.unsqueeze(1).bmm(hc.transpose(0, 1)).squeeze(1)       # (batch, input_size)
-        ze = self.start_sfu(zs, us)     # (batch, input_size)
+        us = start_p.unsqueeze(1).bmm(hc.transpose(0, 1)).squeeze(1)  # (batch, input_size)
+        ze = self.start_sfu(zs, us)  # (batch, input_size)
 
         # end position
         ze_ep = ze.unsqueeze(0).expand(hc.size())
-        x = torch.cat((hc, ze_ep, hc*ze_ep), dim=-1)
+        x = torch.cat((hc, ze_ep, hc * ze_ep), dim=-1)
         end_p = self.end_net(x, hc_mask)
 
         ue = end_p.unsqueeze(1).bmm(hc.transpose(0, 1)).squeeze(1)
@@ -992,7 +1032,7 @@ class ForwardNet(torch.nn.Module):
         h = F.relu(self.linear_h(x))
         h = self.dropout(h)
         o = self.linear_o(h)
-        o = o.squeeze(2).transpose(0, 1)    # (batch, seq_len)
+        o = o.squeeze(2).transpose(0, 1)  # (batch, seq_len)
 
         beta = masked_softmax(o, x_mask, dim=1)
         return beta
