@@ -37,7 +37,6 @@ class MatchLSTM(torch.nn.Module):
         hidden_mode = 'LSTM'
 
         word_embedding_size = 300
-        encoder_word_layers = 1
         encoder_bidirection = True
         encoder_direction_num = 2 if encoder_bidirection else 1
 
@@ -53,7 +52,6 @@ class MatchLSTM(torch.nn.Module):
         self.encoder = MyRNNBase(mode=hidden_mode,
                                  input_size=word_embedding_size,
                                  hidden_size=hidden_size,
-                                 num_layers=encoder_word_layers,
                                  bidirectional=encoder_bidirection,
                                  dropout_p=emb_dropout_p)
         encode_out_size = hidden_size * encoder_direction_num

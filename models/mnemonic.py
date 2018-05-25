@@ -63,7 +63,6 @@ class MReader(torch.nn.Module):
         self.encoder = MyRNNBase(mode=hidden_mode,
                                  input_size=encoder_in_size,
                                  hidden_size=hidden_size,
-                                 num_layers=1,
                                  bidirectional=True,
                                  dropout_p=emb_dropout_p)
 
@@ -78,7 +77,6 @@ class MReader(torch.nn.Module):
         self.aggregation = torch.nn.ModuleList([MyRNNBase(mode=hidden_mode,
                                                           input_size=hidden_size * 2,
                                                           hidden_size=hidden_size,
-                                                          num_layers=1,
                                                           bidirectional=True,
                                                           dropout_p=dropout_p,
                                                           enable_layer_norm=enable_layer_norm)
